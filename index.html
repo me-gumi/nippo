@@ -681,7 +681,8 @@ function buildPrompt(){
   +"・スタッフ一人ひとりを具体的な行動で観察し、良い点・課題・寄り添いを書く。\n"
   +"・やわらかい推量（「〜かなと思いました」「〜だろうなと感じました」）。\n"
   +"・前向きに締める（「引き続き見ていきます」「〜できるようにしていきます」）。\n"
-  +"・大げさにせず事実ベースで、でも温かく。箇条書きの内容以外の事実は作らない。\n\n"
+  +"・大げさにせず事実ベースで、でも温かく。箇条書きの内容以外の事実は作らない。\n"
+  +"・「感じております」ではなく「感じます」。「良い」はひらがなで「よい」と書く。\n\n"
   +"【名前の表記（厳守）】\n"
   +"・スタッフの名前は、与えられた表記を一字一句そのまま使う。敬称（さん／ちゃん 等）を勝手に足したり外したりしない。\n"
   +"・正しい表記の例：パーカー（×パーカーさん）／サブロー（×サブローさん）／ちゃまさん／おむちゃんさん／たきちゃん。\n"
@@ -708,6 +709,9 @@ function fixNames(text){
   Object.values(NAMEMAP).forEach(n=>{ text=text.split(n+"さん").join(n); });
   return text;
 }
+// やえさんの言い回しに合わせて毎回自動補正する置換ルール
+const POLISH=[["感じております","感じます"],["良い","よい"]];
+function polishStyle(text){ POLISH.forEach(([a,b])=>{ text=text.split(a).join(b); }); return text; }
 async function generateReport(){
   const key=$("geminiKey").value.trim();
   if(!key){ toast("⚙設定でGemini APIキーを入れてください"); $("settingsModal").classList.add("show"); return; }
@@ -725,7 +729,7 @@ async function generateReport(){
         if(r.ok){
           const data=await r.json();
           let text=data&&data.candidates&&data.candidates[0]&&data.candidates[0].content&&data.candidates[0].content.parts&&data.candidates[0].content.parts[0].text;
-          if(text){ text=fixNames(text.replace(/^```[a-zA-Z]*\n?/,"").replace(/\n?```\s*$/,"").trim()); $("genReport").value=text; renderReport(); save(); $("genState").textContent="✓ 文章にしました（下の枠で手直しできます）"; toast("文章にしました"); return; }
+          if(text){ text=polishStyle(fixNames(text.replace(/^```[a-zA-Z]*\n?/,"").replace(/\n?```\s*$/,"").trim())); $("genReport").value=text; renderReport(); save(); $("genState").textContent="✓ 文章にしました（下の枠で手直しできます）"; toast("文章にしました"); return; }
           lastMsg="生成結果が空";
         } else {
           const e=await r.text(); lastMsg=r.status+" "+e.slice(0,80);
