@@ -610,7 +610,7 @@ async function generateReport(){
   if(!key){ toast("⚙設定でGemini APIキーを入れてください"); $("settingsModal").classList.add("show"); return; }
   const b=$("genBtn"); const o=b.textContent; b.disabled=true; b.textContent="作成中…"; $("genState").textContent="作成中…（数秒〜十数秒お待ちください）";
   try{
-    const url="https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key="+encodeURIComponent(key);
+    const url="https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key="+encodeURIComponent(key);
     const body={contents:[{parts:[{text:buildPrompt()}]}],generationConfig:{temperature:0.7}};
     const r=await fetch(url,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(body)});
     if(!r.ok){ const e=await r.text(); throw new Error(r.status+" "+e.slice(0,140)); }
