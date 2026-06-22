@@ -1,0 +1,578 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>下北沢 テーマ＆日報アプリ</title>
+<style>
+  :root{
+    --bg:#fdf6ef; --card:#fff; --ink:#4d4540; --sub:#a08c7d; --line:#f0e3d6;
+    --brand:#e8741e; --brand-d:#d2640f; --accent:#fff3e6; --radius:16px;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--ink);
+    font-family:"Hiragino Kaku Gothic ProN","Yu Gothic","Meiryo",sans-serif;line-height:1.6}
+  .wrap{max-width:880px;margin:0 auto;padding:16px 16px 96px}
+  h1{font-size:20px;margin:6px 0 2px}
+  .lead{color:var(--sub);font-size:13px;margin:0 0 16px}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:var(--radius);
+    padding:18px;margin-bottom:16px;box-shadow:0 1px 2px rgba(0,0,0,.03)}
+  .card h2{font-size:15px;margin:0 0 12px;display:flex;align-items:center;gap:8px}
+  .card h2 .num{background:var(--brand);color:#fff;width:22px;height:22px;border-radius:50%;
+    display:inline-grid;place-items:center;font-size:12px;flex:0 0 auto}
+  label{display:block;font-size:13px;color:var(--sub);margin:12px 0 4px}
+  input,select,textarea{width:100%;padding:10px 12px;border:1px solid var(--line);
+    border-radius:10px;font:inherit;font-size:16px;color:var(--ink);background:#fff}
+  input:focus,select:focus,textarea:focus{outline:2px solid var(--accent);border-color:var(--brand)}
+  textarea{min-height:60px;resize:vertical;line-height:1.7}
+  .row{display:flex;gap:12px;flex-wrap:wrap}
+  .row>div{flex:1;min-width:90px}
+  .btn{appearance:none;border:0;border-radius:10px;padding:10px 16px;font:inherit;font-weight:600;
+    cursor:pointer;background:var(--brand);color:#fff}
+  .btn:hover{background:var(--brand-d)}
+  .btn.ghost{background:#fff;color:var(--brand);border:1px solid var(--brand)}
+  .btn.ghost:hover{background:var(--accent)}
+  .btn.mini{padding:7px 12px;font-size:13px}
+  .btn.danger{background:#fff;color:#b91c1c;border:1px solid #f1c4c4}
+  .btn.danger:hover{background:#fdecec}
+  .presetbar{display:flex;gap:8px;margin-top:8px;flex-wrap:wrap}
+  .hint{font-size:12px;color:var(--sub);margin-top:6px}
+  .mt6{margin-top:6px}
+  .badge{display:inline-grid;place-items:center;background:var(--brand);color:#fff;width:20px;height:20px;border-radius:50%;font-size:12px;margin-right:6px}
+  /* tabs */
+  .tabs{display:flex;background:#fff;border:1px solid var(--line);border-radius:12px;overflow:hidden;margin-bottom:16px}
+  .tab{flex:1;text-align:center;padding:12px;font-weight:700;font-size:15px;color:var(--sub);cursor:pointer}
+  .tab.active{background:var(--brand);color:#fff}
+  .page{display:none}.page.active{display:block}
+  /* chips */
+  .chip-wrap{display:flex;flex-wrap:wrap;gap:8px}
+  .chip{padding:8px 12px;border:1px solid var(--line);border-radius:999px;font-size:14px;background:#fff;cursor:pointer;user-select:none}
+  .chip.on{background:var(--brand);color:#fff;border-color:var(--brand)}
+  /* preview */
+  .previewbox{white-space:pre-wrap;background:#fff7ef;border:1px solid #f3d9bd;border-radius:14px;padding:14px;font-size:14px;min-height:120px}
+  /* sticky bar */
+  .bar{position:fixed;left:0;right:0;bottom:0;z-index:30;background:#fff;border-top:1px solid var(--line);
+    padding:10px 16px;display:flex;gap:10px;max-width:880px;margin:0 auto}
+  .bar .btn{flex:1;padding:14px;font-size:16px}
+  .bar .reset{flex:0 0 92px;background:#eee;color:#555}
+  .bar .reset:hover{background:#e2e2e2}
+  .toast{position:fixed;left:50%;bottom:80px;transform:translateX(-50%) translateY(20px);
+    background:#1f2430;color:#fff;padding:10px 18px;border-radius:999px;font-size:14px;
+    opacity:0;pointer-events:none;transition:.25s;z-index:40}
+  .toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+  /* login */
+  .login{position:fixed;inset:0;background:var(--bg);z-index:100;display:grid;place-items:center;padding:20px}
+  .login .box{background:#fff;border:1px solid var(--line);border-radius:var(--radius);padding:26px;max-width:360px;width:100%;box-shadow:0 4px 16px rgba(0,0,0,.06)}
+  .login h1{color:var(--brand);margin:0 0 4px}
+  .login .err{color:#b91c1c;font-size:13px;margin-top:8px;min-height:18px}
+  /* gear & settings modal */
+  .gear{background:transparent;border:0;font-size:26px;cursor:pointer;line-height:1;padding:4px;color:var(--sub)}
+  .gear:hover{color:var(--brand)}
+  .modal{position:fixed;inset:0;background:rgba(0,0,0,.35);z-index:90;display:none;place-items:center;padding:20px}
+  .modal.show{display:grid}
+  .mbox{background:#fff;border-radius:var(--radius);padding:22px;max-width:460px;width:100%;box-shadow:0 8px 30px rgba(0,0,0,.2);max-height:90vh;overflow:auto}
+  .mbox h2{margin:0 0 6px;font-size:16px;color:var(--brand)}
+</style>
+</head>
+<body>
+
+<!-- ===== ログイン ===== -->
+<div class="login" id="login">
+  <div class="box">
+    <h1>下北沢 テーマ＆日報アプリ</h1>
+    <p class="lead">スマホ・パソコンどちらでも使えます。</p>
+    <label>ユーザー名（自由・空欄でも可）</label>
+    <input id="loginUser" autocomplete="username">
+    <label>パスワード</label>
+    <input id="loginPass" type="password" autocomplete="current-password">
+    <div class="err" id="loginErr"></div>
+    <button class="btn" id="loginBtn" style="width:100%;margin-top:10px">入る</button>
+  </div>
+</div>
+
+<div class="wrap" id="app" style="display:none">
+  <div style="display:flex;align-items:center;justify-content:space-between;gap:8px">
+    <h1 style="margin:0">下北沢SHOP　テーマ＆日報アプリ</h1>
+    <button class="gear" id="gearBtn" type="button" title="設定">⚙</button>
+  </div>
+  <p class="lead">選んで・直して・コピー → アイポに貼って送信。朝のテーマは夜の日報に自動で引き継がれます。</p>
+
+  <!-- 設定モーダル -->
+  <div class="modal" id="settingsModal">
+    <div class="mbox">
+      <h2>⚙ 設定：スプレッドシートのリンク</h2>
+      <p class="hint" style="margin-top:0">「リンクを知っている人全員」で共有したシートのURLを貼り付けてください。年が変わってシートが変わったら、ここを貼り替えるだけです。</p>
+      <label>売上目標シートのリンク</label>
+      <input type="text" id="salesUrl" placeholder="https://docs.google.com/spreadsheets/d/.../edit">
+      <label style="margin-top:10px">シフト表のリンク</label>
+      <input type="text" id="shiftUrl" placeholder="https://docs.google.com/spreadsheets/d/.../edit">
+      <div class="presetbar" style="margin-top:14px">
+        <button class="btn ghost mini" id="testConn" type="button">接続テスト</button>
+        <button class="btn mini" id="closeSettings" type="button">保存して閉じる</button>
+      </div>
+      <div class="hint" id="testState" style="margin-top:8px"></div>
+    </div>
+  </div>
+
+  <div class="tabs">
+    <div class="tab active" data-tab="theme" onclick="switchTab('theme')">☀ わくわくテーマ</div>
+    <div class="tab" data-tab="report" onclick="switchTab('report')">📝 日報</div>
+  </div>
+
+  <!-- ============ テーマ ============ -->
+  <div class="page active" id="page-theme">
+    <div class="card">
+      <h2><span class="num">☀</span>わくわくテーマ</h2>
+
+      <label>テーマ</label>
+      <select id="themeSel"></select>
+      <input type="text" id="theme" class="mt6" placeholder="テーマを入力">
+      <div class="presetbar">
+        <button class="btn ghost mini" data-save="theme">＋ この文を保存</button>
+        <button class="btn danger mini" data-del="theme">🗑 選択中を削除</button>
+      </div>
+
+      <label style="margin-top:16px"><span class="badge">1</span>プラス紹介の目標</label>
+      <select id="g1Sel"></select>
+      <textarea id="g1" class="mt6"></textarea>
+      <div class="presetbar">
+        <button class="btn ghost mini" data-save="g1">＋ この文を保存</button>
+        <button class="btn danger mini" data-del="g1">🗑 選択中を削除</button>
+      </div>
+
+      <label style="margin-top:16px"><span class="badge">2</span>お声がけ・接客の質</label>
+      <select id="g2Sel"></select>
+      <textarea id="g2" class="mt6"></textarea>
+      <div class="presetbar">
+        <button class="btn ghost mini" data-save="g2">＋ この文を保存</button>
+        <button class="btn danger mini" data-del="g2">🗑 選択中を削除</button>
+      </div>
+
+      <label style="margin-top:16px"><span class="badge">3</span>フライヤー＆アプリ獲得</label>
+      <select id="g3Sel"></select>
+      <div class="row mt6">
+        <div style="flex:0 0 130px">
+          <input type="number" id="appNum" value="15" min="0" inputmode="numeric">
+          <div class="hint">アプリ獲得名数</div>
+        </div>
+        <div class="hint" style="align-self:center">③の「アプリ◯名以上」に反映されます</div>
+      </div>
+      <textarea id="g3" class="mt6"></textarea>
+      <div class="presetbar">
+        <button class="btn ghost mini" data-save="g3">＋ この文を保存</button>
+        <button class="btn danger mini" data-del="g3">🗑 選択中を削除</button>
+      </div>
+
+      <label style="margin-top:16px">本日の売上目標（円）</label>
+      <div class="presetbar" style="margin-top:0">
+        <button class="btn ghost mini" id="connTheme" type="button">🔗 接続して本日の目標を取得</button>
+      </div>
+      <input type="number" id="sales" class="mt6" inputmode="numeric" placeholder="例：201090">
+      <div class="hint">スプレッドシートの「売上目標」から自動取得（手入力も可）</div>
+
+      <label style="margin-top:12px">一言メモ（任意）</label>
+      <input type="text" id="memo" placeholder="例：新作発売日なのでもりもり紹介しましょう！">
+    </div>
+
+    <div class="card">
+      <h2><span class="num">📋</span>プレビュー</h2>
+      <div class="previewbox" id="themePrev"></div>
+    </div>
+  </div>
+
+  <!-- ============ 日報 ============ -->
+  <div class="page" id="page-report">
+    <div class="card">
+      <h2><span class="num">1</span>今日の作業報告</h2>
+      <div class="row" style="margin-bottom:8px">
+        <div style="flex:0 0 auto"><button class="btn ghost mini" type="button" onclick="setDate(0)">今日</button></div>
+        <div style="flex:0 0 auto"><button class="btn ghost mini" type="button" onclick="setDate(-1)">昨日</button></div>
+        <div><input type="date" id="rdate"></div>
+      </div>
+      <div class="presetbar" style="margin-bottom:10px">
+        <button class="btn ghost mini" id="connReport" type="button">🔗 接続して数字・出勤メンバーを取得</button>
+      </div>
+      <div class="hint" style="margin-bottom:8px">この日の「目標・実績・客数」と「出勤メンバー（やえ以外）」を取得します</div>
+      <div class="chip-wrap" id="workChips"></div>
+      <input type="text" id="workAdd" class="mt6" placeholder="その他を追加してEnter（例：撤去）">
+    </div>
+
+    <div class="card">
+      <h2><span class="num">2</span>売上目標と実績とその考察</h2>
+      <div class="row">
+        <div><label>目標（円）</label><input type="number" id="rTarget" inputmode="numeric"></div>
+        <div><label>実績（円）</label><input type="number" id="rActual" inputmode="numeric"></div>
+        <div style="flex:0 0 90px"><label>客数（名）</label><input type="number" id="rGuests" inputmode="numeric"></div>
+      </div>
+      <div class="hint">スマレジ：目標=予算 / 実績=純売上の大きい数字 / 名=取引数</div>
+      <label style="margin-top:12px">考察</label>
+      <textarea id="rConsider" placeholder="天候・客層・国内/海外の単価・リピーター・プラス紹介の状況など"></textarea>
+    </div>
+
+    <div class="card">
+      <h2><span class="num">3</span>気づき（スタッフの状況、その他の報告）</h2>
+      <label>テーマ</label>
+      <input type="text" id="rTheme" placeholder="朝のテーマが自動で入ります">
+      <label style="margin-top:12px"><span class="badge">1</span>結果・振り返り</label>
+      <textarea id="r1"></textarea>
+      <label style="margin-top:12px"><span class="badge">2</span>結果・振り返り</label>
+      <textarea id="r2"></textarea>
+      <label style="margin-top:12px"><span class="badge">3</span>結果・振り返り</label>
+      <textarea id="r3"></textarea>
+      <label style="margin-top:12px">スタッフ・その他の報告</label>
+      <textarea id="rStaff" style="min-height:120px" placeholder="スタッフ名ごとに改行で記載&#10;例）&#10;たきちゃん&#10;〜〜&#10;&#10;サブロー&#10;〜〜"></textarea>
+    </div>
+
+    <div class="card">
+      <h2><span class="num">4</span>SVに相談♪</h2>
+      <textarea id="rSV" placeholder="相談事項があれば。なければ空欄でOK"></textarea>
+    </div>
+
+    <div class="card">
+      <h2><span class="num">📋</span>プレビュー</h2>
+      <div class="previewbox" id="reportPrev"></div>
+    </div>
+  </div>
+</div>
+
+<div class="bar" id="bar" style="display:none">
+  <button class="btn" id="copyBtn">📋 コピー</button>
+  <button class="btn reset" id="resetBtn">リセット</button>
+</div>
+<div class="toast" id="toast"></div>
+
+<script>
+// ===== 設定 =====
+const PASSWORD="shimokita"; // ← 変更可。半角英数字。
+
+// ===== やえさん投稿分の初期プリセット（パーカーさん分は除外） =====
+const DEFAULTS={
+  theme:[
+    "売上もアプリも目標達成！","アプリも売上も目標達成！","アプリ達成！売上は目標に寄せよう！",
+    "目標達成！","目標に寄せよう！","今日も！！売上もアプリも目標達成するぞー！！",
+  ],
+  g1:[
+    "お客様のお持ちのアイテムに合わせて関連デザインのステッカーや雑貨、iPadなどをプラスでご紹介しよう。",
+    "一か所に留まらず、自分からお客様に歩み寄ってお声がけしよう。",
+  ],
+  g2:[
+    "アプリ紹介だけで終わらず、心をほぐすお声がけをしよう！",
+    "ファースト・アプリ紹介以外にも、心をほぐすお声がけをしよう！",
+    "ファーストやアプリ紹介だけで終わらない！「また来たい」と思ってもらえるように心がけてお話ししよう。",
+    "意味もなくその場に立ち止まらず、そして人を選ばず、自分の持ち場のお客様にしっかりお声がけしよう。",
+    "同じお客様に対して、全員で、ファースト・アプリ紹介も含めて4回はお声がけしよう！",
+  ],
+  g3:[ // {n}=アプリ名数
+    "フロアでフライヤー配布済み100%！ステッカーをお持ちのお客様に気づいたら、すぐにお渡ししよう。アプリ{n}名以上獲得！",
+  ],
+};
+const WORKS=["開店作業","接客、レジ","不足出し","発注作業","閉店作業","設置作業","撤去","ステップアップ","作業"];
+const DEFAULT_WORKS=["開店作業","接客、レジ","閉店作業","発注作業"];
+const WD=["日","月","火","水","木","金","土"];
+const $=id=>document.getElementById(id);
+const LS="shimokita_app_v2";
+const PLS="shimokita_presets_v2";
+
+let presets=loadPresets();
+let workSet=new Set(DEFAULT_WORKS), extraWorks=[];
+
+// ===== プリセット保存/読込 =====
+function loadPresets(){
+  try{ const p=JSON.parse(localStorage.getItem(PLS)); if(p&&p.theme&&p.g1&&p.g2&&p.g3) return p; }catch(e){}
+  return JSON.parse(JSON.stringify(DEFAULTS));
+}
+function savePresets(){ try{ localStorage.setItem(PLS,JSON.stringify(presets)); }catch(e){} }
+
+// kind→fieldId
+const FIELD={theme:"theme",g1:"g1",g2:"g2",g3:"g3"};
+const SEL={theme:"themeSel",g1:"g1Sel",g2:"g2Sel",g3:"g3Sel"};
+
+// g3 の数字トークン処理
+function fromToken(t){ return t.replace(/\{n\}/g,($("appNum").value||"◯")); }
+function toToken(t){ return t.replace(/アプリ\s*[0-9０-９]+\s*名/,"アプリ{n}名"); }
+
+function buildSelect(kind){
+  const sel=$(SEL[kind]); const cur=sel.value;
+  sel.innerHTML="";
+  presets[kind].forEach((t,i)=>{ const o=document.createElement("option"); o.value=i; o.textContent=(kind==="g3"?t.replace("{n}","◯"):t); sel.appendChild(o); });
+  const c=document.createElement("option"); c.value="custom"; c.textContent="✏ カスタム入力"; sel.appendChild(c);
+  if(cur!==""&&(cur==="custom"||Number(cur)<presets[kind].length)) sel.value=cur;
+}
+function applyFromSelect(kind){
+  const sel=$(SEL[kind]); if(sel.value==="custom") return;
+  let t=presets[kind][Number(sel.value)]; if(t===undefined) return;
+  $(FIELD[kind]).value=(kind==="g3")?fromToken(t):t;
+}
+function savePreset(kind){
+  let v=$(FIELD[kind]).value.trim(); if(!v){ toast("文章が空です"); return; }
+  let store=(kind==="g3")?toToken(v):v;
+  if(presets[kind].includes(store)){ toast("すでに保存されています"); return; }
+  presets[kind].push(store); savePresets(); buildSelect(kind);
+  $(SEL[kind]).value=presets[kind].length-1; toast("保存しました");
+}
+function delPreset(kind){
+  const sel=$(SEL[kind]);
+  if(sel.value==="custom"){ toast("削除する選択肢を選んでください"); return; }
+  const i=Number(sel.value); const name=presets[kind][i];
+  if(!confirm("この選択肢を削除しますか？\n\n"+(kind==="g3"?name.replace("{n}","◯"):name))) return;
+  presets[kind].splice(i,1); savePresets(); buildSelect(kind);
+  sel.value="custom"; toast("削除しました");
+}
+
+// ===== 作業チップ =====
+function renderWorkChips(){
+  const wrap=$("workChips"); wrap.innerHTML="";
+  WORKS.concat(extraWorks).forEach(w=>{
+    const c=document.createElement("div"); c.className="chip"+(workSet.has(w)?" on":""); c.textContent=w;
+    c.onclick=()=>{ workSet.has(w)?workSet.delete(w):workSet.add(w); renderWorkChips(); renderReport(); save(); };
+    wrap.appendChild(c);
+  });
+}
+
+// ===== テーマ反映＆引き継ぎ =====
+function applyG3num(){
+  const sel=$("g3Sel");
+  if(sel.value!=="custom"){ $("g3").value=fromToken(presets.g3[Number(sel.value)]||""); }
+  else{ $("g3").value=$("g3").value.replace(/アプリ\s*[0-9０-９]+\s*名/,"アプリ"+($("appNum").value||"◯")+"名"); }
+}
+function sync(){
+  if(!$("rTheme").dataset.touched) $("rTheme").value=$("theme").value;
+  if(!$("r1").dataset.touched) $("r1").value=$("g1").value;
+  if(!$("r2").dataset.touched) $("r2").value=$("g2").value;
+  if(!$("r3").dataset.touched) $("r3").value=$("g3").value;
+  if(!$("rTarget").dataset.touched && $("sales").value) $("rTarget").value=$("sales").value;
+  renderTheme(); renderReport(); save();
+}
+
+// ===== プレビュー =====
+function yen(v){ return v?Number(v).toLocaleString("ja-JP"):""; }
+function buildTheme(){
+  let s="おはようございます！\n今日のテーマこちらです！\n\n";
+  s+="テーマ「"+($("theme").value||"")+"」\n";
+  s+="①"+($("g1").value||"")+"\n②"+($("g2").value||"")+"\n③"+($("g3").value||"")+"\n\n";
+  if($("sales").value) s+="本日の目標は"+yen($("sales").value)+"円です！\n";
+  if($("memo").value.trim()) s+=$("memo").value.trim()+"\n";
+  s+="今日も一日よろしくお願いします！！";
+  return s;
+}
+function fmtDate(v){ if(!v) return ""; const d=new Date(v+"T00:00:00"); return (d.getMonth()+1)+"/"+d.getDate()+"("+WD[d.getDay()]+")"; }
+function buildReport(){
+  let s="お疲れ様です。本日の日報をお送りいたします。\nご確認よろしくお願いいたします。\n\n";
+  s+=fmtDate($("rdate").value)+"\n1【今日の作業報告】\n";
+  WORKS.concat(extraWorks).filter(w=>workSet.has(w)).forEach(w=>s+="・"+w+"\n");
+  s+="\n2【今日の売上目標と実績とその考察】\n";
+  s+="目標："+yen($("rTarget").value)+"円\n";
+  s+="実績："+yen($("rActual").value)+"円（"+($("rGuests").value||"")+"名）\n";
+  if($("rConsider").value.trim()) s+="\n"+$("rConsider").value.trim()+"\n";
+  s+="\n3【気づき】（スタッフの状況、その他の報告）\n";
+  if($("rTheme").value.trim()) s+="テーマ「"+$("rTheme").value.trim()+"」\n";
+  if($("r1").value.trim()) s+="①"+$("r1").value.trim()+"\n";
+  if($("r2").value.trim()) s+="②"+$("r2").value.trim()+"\n";
+  if($("r3").value.trim()) s+="③"+$("r3").value.trim()+"\n";
+  if($("rStaff").value.trim()) s+="\n"+$("rStaff").value.trim()+"\n";
+  s+="\n4【SVに相談♪】";
+  if($("rSV").value.trim()) s+="\n"+$("rSV").value.trim();
+  return s;
+}
+function renderTheme(){ $("themePrev").textContent=buildTheme(); }
+function renderReport(){ $("reportPrev").textContent=buildReport(); }
+
+// ===== タブ =====
+let curTab="theme";
+function switchTab(t){
+  curTab=t;
+  document.querySelectorAll(".tab").forEach(el=>el.classList.toggle("active",el.dataset.tab===t));
+  document.querySelectorAll(".page").forEach(el=>el.classList.remove("active"));
+  $("page-"+t).classList.add("active"); window.scrollTo(0,0);
+}
+function setDate(off){
+  const d=new Date(); d.setDate(d.getDate()+off);
+  $("rdate").value=d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0");
+  renderReport(); save();
+}
+
+// ===== トースト＆コピー =====
+let tT;
+function toast(msg){ const t=$("toast"); t.textContent=msg; t.classList.add("show"); clearTimeout(tT); tT=setTimeout(()=>t.classList.remove("show"),1500); }
+$("copyBtn").onclick=async()=>{
+  const txt=(curTab==="theme")?buildTheme():buildReport();
+  try{ await navigator.clipboard.writeText(txt); }
+  catch(e){ const ta=document.createElement("textarea"); ta.value=txt; ta.style.position="fixed"; ta.style.opacity="0"; document.body.appendChild(ta); ta.focus(); ta.select(); document.execCommand("copy"); document.body.removeChild(ta); }
+  toast((curTab==="theme"?"テーマ":"日報")+"をコピーしました！");
+};
+$("resetBtn").onclick=()=>{
+  if(!confirm((curTab==="theme"?"テーマ":"日報")+"の入力をリセットしますか？")) return;
+  if(curTab==="theme"){
+    $("themeSel").value=0; $("g1Sel").value=0; $("g2Sel").value=0; $("g3Sel").value=0;
+    $("appNum").value=15; $("sales").value=""; $("memo").value="";
+    applyFromSelect("theme"); applyFromSelect("g1"); applyFromSelect("g2"); applyFromSelect("g3"); sync();
+  }else{
+    ["rTarget","rActual","rGuests","rConsider","rTheme","r1","r2","r3","rStaff","rSV"].forEach(id=>{ $(id).value=""; delete $(id).dataset.touched; });
+    workSet=new Set(DEFAULT_WORKS); extraWorks=[]; renderWorkChips(); setDate(0); sync();
+  }
+  save();
+};
+
+// ===== 保存・復元（入力内容） =====
+function save(){
+  const d={
+    themeSel:$("themeSel").value,theme:$("theme").value,
+    g1Sel:$("g1Sel").value,g1:$("g1").value,g2Sel:$("g2Sel").value,g2:$("g2").value,
+    g3Sel:$("g3Sel").value,g3:$("g3").value,appNum:$("appNum").value,sales:$("sales").value,memo:$("memo").value,
+    rdate:$("rdate").value,rTarget:$("rTarget").value,rActual:$("rActual").value,rGuests:$("rGuests").value,
+    rConsider:$("rConsider").value,rTheme:$("rTheme").value,r1:$("r1").value,r2:$("r2").value,r3:$("r3").value,
+    rStaff:$("rStaff").value,rSV:$("rSV").value,works:[...workSet],extraWorks,
+    salesUrl:$("salesUrl").value,shiftUrl:$("shiftUrl").value,
+    touched:["rTheme","r1","r2","r3","rTarget"].filter(id=>$(id).dataset.touched)
+  };
+  try{ localStorage.setItem(LS,JSON.stringify(d)); }catch(e){}
+}
+function load(){
+  let d; try{ d=JSON.parse(localStorage.getItem(LS)); }catch(e){} if(!d) return false;
+  const set=(id,v)=>{ if(v!==undefined&&v!==null) $(id).value=v; };
+  ["themeSel","theme","g1Sel","g1","g2Sel","g2","g3Sel","g3","appNum","sales","memo",
+   "rdate","rTarget","rActual","rGuests","rConsider","rTheme","r1","r2","r3","rStaff","rSV","salesUrl","shiftUrl"].forEach(k=>set(k,d[k]));
+  if(d.works) workSet=new Set(d.works); if(d.extraWorks) extraWorks=d.extraWorks;
+  (d.touched||[]).forEach(id=>$(id).dataset.touched="1");
+  return true;
+}
+
+// ===== イベント =====
+function wire(){
+  // セレクト変更
+  ["theme","g1","g2","g3"].forEach(k=>{
+    $(SEL[k]).onchange=()=>{ applyFromSelect(k); sync(); };
+  });
+  $("appNum").oninput=()=>{ applyG3num(); sync(); };
+  // 保存・削除ボタン
+  document.querySelectorAll("[data-save]").forEach(b=>b.onclick=()=>savePreset(b.dataset.save));
+  document.querySelectorAll("[data-del]").forEach(b=>b.onclick=()=>delPreset(b.dataset.del));
+  // 接続ボタン
+  $("connTheme").onclick=connectTheme;
+  $("connReport").onclick=connectReport;
+  $("salesUrl").oninput=save; $("shiftUrl").oninput=save;
+  // 設定モーダル
+  $("gearBtn").onclick=()=>{ $("testState").textContent=""; $("settingsModal").classList.add("show"); };
+  $("closeSettings").onclick=()=>{ save(); $("settingsModal").classList.remove("show"); };
+  $("settingsModal").onclick=e=>{ if(e.target===$("settingsModal")) $("settingsModal").classList.remove("show"); };
+  $("testConn").onclick=async()=>{
+    $("testState").textContent="接続テスト中…";
+    try{ const s=await fetchSales(todayIso());
+      if(s&&s.target!=null) $("testState").textContent="✓ 接続OK（本日の売上目標 ¥"+Number(s.target).toLocaleString("ja-JP")+"）";
+      else $("testState").textContent="接続できましたが本日の行が見つかりません（シート名・日付をご確認ください）";
+    }catch(e){ $("testState").textContent="✗ 接続できません（URL・共有設定・通信をご確認ください）"; }
+  };
+  // テキスト入力
+  ["theme","g1","g2","g3","sales","memo"].forEach(id=>$(id).oninput=sync);
+  ["rdate","rTarget","rActual","rGuests","rConsider","rTheme","r1","r2","r3","rStaff","rSV"].forEach(id=>$(id).oninput=()=>{ renderReport(); save(); });
+  ["rTheme","r1","r2","r3","rTarget"].forEach(id=>$(id).addEventListener("input",()=>{ $(id).dataset.touched="1"; }));
+  // 作業追加
+  $("workAdd").addEventListener("keydown",e=>{
+    if(e.key==="Enter"){ const v=e.target.value.trim(); if(v&&!WORKS.includes(v)&&!extraWorks.includes(v)){ extraWorks.push(v); workSet.add(v);} e.target.value=""; renderWorkChips(); renderReport(); save(); e.preventDefault(); }
+  });
+}
+
+// ===== スプレッドシート接続 =====
+const SHEET_DEFAULTS={
+  sales:"https://docs.google.com/spreadsheets/d/1gRzDi7N2hhpnhNgvDD3olb0d8bxXYt_JMR_Kv87-C8U/edit",
+  shift:"https://docs.google.com/spreadsheets/d/1MX9hEw1z7uVykB6NQ4xk-kPYmLwrEO2Z6ecwzH_2LIw/edit"
+};
+const NAMEMAP={"パーカー":"パーカー","ちゃま":"ちゃまさん","おむ":"おむちゃんさん","サブロー":"サブロー","たき":"たきちゃん"};
+const MEMBERS=["パーカー","ちゃま","おむ","サブロー","たき"]; // やえ・へるぷは除外
+function sheetId(u){ const m=(u||"").match(/\/d\/([a-zA-Z0-9-_]+)/); return m?m[1]:""; }
+function csvUrl(id,name){ return "https://docs.google.com/spreadsheets/d/"+id+"/gviz/tq?tqx=out:csv&sheet="+encodeURIComponent(name); }
+function pad2(n){ return String(n).padStart(2,"0"); }
+function dParts(iso){ const d=new Date(iso+"T00:00:00"); return {y:d.getFullYear(),m:d.getMonth()+1,d:d.getDate()}; }
+function todayIso(){ const d=new Date(); return d.getFullYear()+"-"+pad2(d.getMonth()+1)+"-"+pad2(d.getDate()); }
+function parseCSV(t){
+  const rows=[]; let row=[],cur="",q=false;
+  for(let i=0;i<t.length;i++){const c=t[i];
+    if(q){ if(c==='"'){ if(t[i+1]==='"'){cur+='"';i++;} else q=false; } else cur+=c; }
+    else { if(c==='"')q=true; else if(c===','){row.push(cur);cur="";} else if(c==='\n'){row.push(cur);rows.push(row);row=[];cur="";} else if(c==='\r'){} else cur+=c; }
+  }
+  if(cur!==""||row.length){row.push(cur);rows.push(row);}
+  return rows;
+}
+async function fetchSales(iso){
+  const id=sheetId($("salesUrl").value||SHEET_DEFAULTS.sales);
+  const {y,m,d}=dParts(iso);
+  const rows=parseCSV(await (await fetch(csvUrl(id,"下北沢"+m+"月"))).text());
+  const target=y+"/"+m+"/"+d;
+  let c=-1,row=null;
+  for(const r of rows){ const idx=r.findIndex(x=>x&&x.trim()===target); if(idx>=0){ c=idx; row=r; break; } }
+  if(!row) return null;
+  const num=s=>{ s=(s||"").replace(/[^0-9]/g,""); return s?Number(s):null; };
+  return { target:num(row[c+2]), actual:num(row[c+6]), guests:num(row[c+7]) };
+}
+async function fetchShift(iso){
+  const id=sheetId($("shiftUrl").value||SHEET_DEFAULTS.shift);
+  const {y,m,d}=dParts(iso);
+  const rows=parseCSV(await (await fetch(csvUrl(id,(y%100)+"年"+pad2(m)+"月"))).text());
+  const dRow=rows[0]||[];
+  const target=pad2(m)+"/"+pad2(d);
+  const c=dRow.findIndex(x=>x&&x.trim()===target);
+  if(c<0) return [];
+  const out=[];
+  for(const name of MEMBERS){
+    const works=rows.some(r=>(r[2]||"").trim()===name && /\d{1,2}:\d{2}/.test(r[c]||""));
+    if(works) out.push(NAMEMAP[name]||name);
+  }
+  return out;
+}
+async function connectTheme(){
+  const b=$("connTheme"); const o=b.textContent; b.disabled=true; b.textContent="接続中…";
+  try{
+    const s=await fetchSales(todayIso());
+    if(s&&s.target){ $("sales").value=s.target; sync(); toast("本日の目標を取得しました"); }
+    else toast("本日の目標が見つかりませんでした");
+  }catch(e){ toast("接続に失敗しました（通信・共有設定を確認）"); }
+  finally{ b.disabled=false; b.textContent=o; }
+}
+async function connectReport(){
+  const b=$("connReport"); const o=b.textContent; b.disabled=true; b.textContent="接続中…";
+  try{
+    const iso=$("rdate").value||todayIso();
+    const [s,members]=await Promise.all([fetchSales(iso),fetchShift(iso)]);
+    let msg=[];
+    if(s){
+      if(s.target!=null){ $("rTarget").value=s.target; $("rTarget").dataset.touched="1"; }
+      if(s.actual!=null) $("rActual").value=s.actual;
+      if(s.guests!=null) $("rGuests").value=s.guests;
+      msg.push("数字");
+    }
+    if(members&&members.length){
+      if(!$("rStaff").value.trim()){ $("rStaff").value=members.join("\n\n")+"\n"; }
+      msg.push("出勤メンバー("+members.join("・")+")");
+    }
+    renderReport(); save();
+    toast(msg.length?msg.join("／")+"を取得しました":"該当日のデータが見つかりませんでした");
+  }catch(e){ toast("接続に失敗しました（通信・共有設定を確認）"); }
+  finally{ b.disabled=false; b.textContent=o; }
+}
+
+// ===== 初期化 =====
+function startApp(){
+  $("login").style.display="none"; $("app").style.display="block"; $("bar").style.display="flex";
+  ["theme","g1","g2","g3"].forEach(buildSelect);
+  const restored=load();
+  if(!restored){ $("themeSel").value=0; $("g1Sel").value=0; $("g2Sel").value=0; $("g3Sel").value=0;
+    applyFromSelect("theme"); applyFromSelect("g1"); applyFromSelect("g2"); applyFromSelect("g3"); }
+  if(!$("salesUrl").value) $("salesUrl").value=SHEET_DEFAULTS.sales;
+  if(!$("shiftUrl").value) $("shiftUrl").value=SHEET_DEFAULTS.shift;
+  renderWorkChips();
+  if(!$("rdate").value) setDate(0);
+  wire(); renderTheme(); renderReport();
+}
+
+// ===== ログイン =====
+function tryLogin(){
+  if($("loginPass").value===PASSWORD){ try{ localStorage.setItem("shimokita_authed","1"); }catch(e){} startApp(); }
+  else{ $("loginErr").textContent="パスワードが違います"; }
+}
+$("loginBtn").onclick=tryLogin;
+$("loginPass").addEventListener("keydown",e=>{ if(e.key==="Enter") tryLogin(); });
+// 既ログインなら自動で入る
+try{ if(localStorage.getItem("shimokita_authed")==="1") startApp(); }catch(e){}
+</script>
+</body>
+</html>
