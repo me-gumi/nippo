@@ -36,6 +36,8 @@
   .btn.danger{background:#fff;color:#b91c1c;border:1px solid #f1c4c4}
   .btn.danger:hover{background:#fdecec}
   .presetbar{display:flex;gap:8px;margin-top:8px;flex-wrap:wrap}
+  .goalrow{display:flex;align-items:flex-start;gap:6px;margin:14px 0 4px;font-size:13px;font-weight:700;color:var(--brand-d)}
+  .goallabel{flex:1;line-height:1.5}
   .hint{font-size:12px;color:var(--sub);margin-top:6px}
   .mt6{margin-top:6px}
   .badge{display:inline-grid;place-items:center;background:var(--brand);color:#fff;width:20px;height:20px;border-radius:50%;font-size:12px;margin-right:6px}
@@ -106,6 +108,9 @@
       <input type="text" id="salesUrl" placeholder="https://docs.google.com/spreadsheets/d/.../edit">
       <label style="margin-top:10px">シフト表のリンク</label>
       <input type="text" id="shiftUrl" placeholder="https://docs.google.com/spreadsheets/d/.../edit">
+      <label style="margin-top:14px">Gemini APIキー（文章作成用・無料）</label>
+      <input type="password" id="geminiKey" placeholder="AIza...（端末内のみ保存）">
+      <div class="hint">aistudio.google.com/apikey で無料取得（カード不要）。あなたの端末だけに保存され、公開コードには含まれません。</div>
       <div class="presetbar" style="margin-top:14px">
         <button class="btn ghost mini" id="testConn" type="button">接続テスト</button>
         <button class="btn mini" id="closeSettings" type="button">保存して閉じる</button>
@@ -205,27 +210,40 @@
         <div style="flex:0 0 90px"><label>客数（名）</label><input type="number" id="rGuests" inputmode="numeric"></div>
       </div>
       <div class="hint">スマレジ：目標=予算 / 実績=純売上の大きい数字 / 名=取引数</div>
-      <label style="margin-top:12px">考察</label>
-      <textarea id="rConsider" placeholder="天候・客層・国内/海外の単価・リピーター・プラス紹介の状況など"></textarea>
+      <label style="margin-top:12px">考察（箇条書きでOK）</label>
+      <textarea id="rConsider" placeholder="箇条書きで（改行でOK）&#10;例）&#10;・天気よく国内のお客様多め&#10;・海外単価高め&#10;・リピーターさん多かった"></textarea>
     </div>
 
     <div class="card">
-      <h2><span class="num">3</span>気づき（スタッフの状況、その他の報告）</h2>
+      <h2><span class="num">3</span>気づき（箇条書きでメモ → 下で文章に）</h2>
       <label>テーマ</label>
       <input type="text" id="rTheme" placeholder="朝のテーマが自動で入ります">
-      <label style="margin-top:12px"><span class="badge">1</span>結果・振り返り</label>
-      <textarea id="r1"></textarea>
-      <label style="margin-top:12px"><span class="badge">2</span>結果・振り返り</label>
-      <textarea id="r2"></textarea>
-      <label style="margin-top:12px"><span class="badge">3</span>結果・振り返り</label>
-      <textarea id="r3"></textarea>
-      <label style="margin-top:12px">スタッフ・その他の報告</label>
-      <textarea id="rStaff" style="min-height:120px" placeholder="スタッフ名ごとに改行で記載&#10;例）&#10;たきちゃん&#10;〜〜&#10;&#10;サブロー&#10;〜〜"></textarea>
+
+      <div class="goalrow"><span class="badge">1</span><span class="goallabel" id="gl1"></span></div>
+      <textarea id="r1" placeholder="①についての箇条書き（改行でOK）"></textarea>
+
+      <div class="goalrow"><span class="badge">2</span><span class="goallabel" id="gl2"></span></div>
+      <textarea id="r2" placeholder="②についての箇条書き"></textarea>
+
+      <div class="goalrow"><span class="badge">3</span><span class="goallabel" id="gl3"></span></div>
+      <textarea id="r3" placeholder="③についての箇条書き"></textarea>
+
+      <label style="margin-top:14px">スタッフ・その他（名前ごとに箇条書き）</label>
+      <textarea id="rStaff" style="min-height:150px" placeholder="「接続」すると出勤メンバーが見出しで入ります。名前の下に箇条書きで。&#10;例）&#10;たきちゃん&#10;・アプリ紹介よかった&#10;・声かけ増えた&#10;&#10;サブロー&#10;・プラス紹介が安定"></textarea>
     </div>
 
     <div class="card">
       <h2><span class="num">4</span>SVに相談♪</h2>
       <textarea id="rSV" placeholder="相談事項があれば。なければ空欄でOK"></textarea>
+    </div>
+
+    <div class="card">
+      <h2><span class="num">🤖</span>箇条書きを文章にする</h2>
+      <button class="btn" id="genBtn" type="button" style="width:100%">🤖 箇条書きを文章にする</button>
+      <div class="hint" id="genState" style="margin-top:8px">⚙設定でGemini APIキー（無料）を入れると使えます。生成後はこの下で手直しできます。</div>
+      <label style="margin-top:10px">完成文（編集できます）</label>
+      <textarea id="genReport" style="min-height:220px" placeholder="「文章にする」を押すと、ここにあなたらしい文章が入ります（手直しOK）。&#10;ここに文章があるときは、下のオレンジ枠もこの文章になります。"></textarea>
+      <button class="btn ghost mini" id="genClear" type="button" style="margin-top:8px">完成文をクリア（箇条書き表示に戻す）</button>
     </div>
 
     <div class="card">
@@ -270,7 +288,7 @@ const WORKS=["開店作業","接客、レジ","不足出し","発注作業","閉
 const DEFAULT_WORKS=["開店作業","接客、レジ","閉店作業"];
 const WD=["日","月","火","水","木","金","土"];
 const $=id=>document.getElementById(id);
-const LS="shimokita_app_v2";
+const LS="shimokita_app_v3";
 const PLS="shimokita_presets_v2";
 
 let presets=loadPresets();
@@ -337,9 +355,6 @@ function applyG3num(){
 }
 function sync(){
   if(!$("rTheme").dataset.touched) $("rTheme").value=$("theme").value;
-  if(!$("r1").dataset.touched) $("r1").value=$("g1").value;
-  if(!$("r2").dataset.touched) $("r2").value=$("g2").value;
-  if(!$("r3").dataset.touched) $("r3").value=$("g3").value;
   if(!$("rTarget").dataset.touched && $("sales").value) $("rTarget").value=$("sales").value;
   renderTheme(); renderReport(); save();
 }
@@ -357,6 +372,8 @@ function buildTheme(){
 }
 function fmtDate(v){ if(!v) return ""; const d=new Date(v+"T00:00:00"); return (d.getMonth()+1)+"/"+d.getDate()+"("+WD[d.getDay()]+")"; }
 function buildReport(){
+  const gen=$("genReport").value.trim();
+  if(gen) return gen; // AIで清書した完成文があればそれを使う
   let s="お疲れ様です。本日の日報をお送りいたします。\nご確認よろしくお願いいたします。\n\n";
   s+=fmtDate($("rdate").value)+"\n1【今日の作業報告】\n";
   WORKS.concat(extraWorks).filter(w=>workSet.has(w)).forEach(w=>s+="・"+w+"\n");
@@ -366,16 +383,20 @@ function buildReport(){
   if($("rConsider").value.trim()) s+="\n"+$("rConsider").value.trim()+"\n";
   s+="\n3【気づき】（スタッフの状況、その他の報告）\n";
   if($("rTheme").value.trim()) s+="テーマ「"+$("rTheme").value.trim()+"」\n";
-  if($("r1").value.trim()) s+="①"+$("r1").value.trim()+"\n";
-  if($("r2").value.trim()) s+="②"+$("r2").value.trim()+"\n";
-  if($("r3").value.trim()) s+="③"+$("r3").value.trim()+"\n";
+  const gb=(badge,goal,bul)=>{ goal=(goal||"").trim(); bul=(bul||"").trim(); let t=""; if(goal||bul){ t+=badge+goal+"\n"; if(bul) t+=bul+"\n"; } return t; };
+  s+=gb("①",$("g1").value,$("r1").value);
+  s+=gb("②",$("g2").value,$("r2").value);
+  s+=gb("③",$("g3").value,$("r3").value);
   if($("rStaff").value.trim()) s+="\n"+$("rStaff").value.trim()+"\n";
   s+="\n4【SVに相談♪】";
   if($("rSV").value.trim()) s+="\n"+$("rSV").value.trim();
   return s;
 }
 function renderTheme(){ $("themePrev").textContent=buildTheme(); }
-function renderReport(){ $("reportPrev").textContent=buildReport(); }
+function renderReport(){
+  $("gl1").textContent=$("g1").value||""; $("gl2").textContent=$("g2").value||""; $("gl3").textContent=$("g3").value||"";
+  $("reportPrev").textContent=buildReport();
+}
 
 // ===== タブ =====
 let curTab="theme";
@@ -423,7 +444,8 @@ function save(){
     rConsider:$("rConsider").value,rTheme:$("rTheme").value,r1:$("r1").value,r2:$("r2").value,r3:$("r3").value,
     rStaff:$("rStaff").value,rSV:$("rSV").value,works:[...workSet],extraWorks,
     salesUrl:$("salesUrl").value,shiftUrl:$("shiftUrl").value,
-    touched:["rTheme","r1","r2","r3","rTarget"].filter(id=>$(id).dataset.touched)
+    genReport:$("genReport").value,geminiKey:$("geminiKey").value,
+    touched:["rTheme","rTarget"].filter(id=>$(id).dataset.touched)
   };
   try{ localStorage.setItem(LS,JSON.stringify(d)); }catch(e){}
 }
@@ -431,7 +453,7 @@ function load(){
   let d; try{ d=JSON.parse(localStorage.getItem(LS)); }catch(e){} if(!d) return false;
   const set=(id,v)=>{ if(v!==undefined&&v!==null) $(id).value=v; };
   ["themeSel","theme","g1Sel","g1","g2Sel","g2","g3Sel","g3","appNum","sales","memo",
-   "rdate","rTarget","rActual","rGuests","rConsider","rTheme","r1","r2","r3","rStaff","rSV","salesUrl","shiftUrl"].forEach(k=>set(k,d[k]));
+   "rdate","rTarget","rActual","rGuests","rConsider","rTheme","r1","r2","r3","rStaff","rSV","salesUrl","shiftUrl","genReport","geminiKey"].forEach(k=>set(k,d[k]));
   if(d.extraWorks) extraWorks=d.extraWorks; // 作業の選択は毎回はじめからDEFAULT_WORKS（記憶しない）
   (d.touched||[]).forEach(id=>$(id).dataset.touched="1");
   return true;
@@ -464,7 +486,10 @@ function wire(){
   };
   // テキスト入力
   ["theme","g1","g2","g3","sales","memo"].forEach(id=>$(id).oninput=sync);
-  ["rdate","rTarget","rActual","rGuests","rConsider","rTheme","r1","r2","r3","rStaff","rSV"].forEach(id=>$(id).oninput=()=>{ renderReport(); save(); });
+  ["rdate","rTarget","rActual","rGuests","rConsider","rTheme","r1","r2","r3","rStaff","rSV","genReport"].forEach(id=>$(id).oninput=()=>{ renderReport(); save(); });
+  $("genBtn").onclick=generateReport;
+  $("genClear").onclick=()=>{ $("genReport").value=""; renderReport(); save(); $("genState").textContent="完成文をクリアしました（箇条書き表示に戻りました）"; };
+  $("geminiKey").oninput=save;
   ["rTheme","r1","r2","r3","rTarget"].forEach(id=>$(id).addEventListener("input",()=>{ $(id).dataset.touched="1"; }));
   // 作業追加
   $("workAdd").addEventListener("keydown",e=>{
@@ -550,6 +575,53 @@ async function connectReport(){
   finally{ b.disabled=false; b.textContent=o; }
 }
 
+// ===== AIで文章にする（Gemini無料枠） =====
+function buildPrompt(){
+  const date=fmtDate($("rdate").value);
+  const works=WORKS.concat(extraWorks).filter(w=>workSet.has(w)).map(w=>"・"+w).join("\n");
+  const tgt=yen($("rTarget").value), act=yen($("rActual").value), g=$("rGuests").value||"";
+  const theme=$("rTheme").value.trim(), g1=$("g1").value.trim(), g2=$("g2").value.trim(), g3=$("g3").value.trim();
+  const nz=v=>{ v=(v||"").trim(); return v||"（なし）"; };
+  return "あなたは雑貨店の店長「やえ」として、その日の日報を書きます。以下の【文体の特徴】を必ず守り、【箇条書きメモ】を自然な文章に書き起こしてください。\n\n"
+  +"【文体の特徴】\n"
+  +"・ていねいな「です・ます」調。謙虚でやわらかい言い回し。\n"
+  +"・「状況→自分がした対応→その理由→結果→今後どうするか」の流れ。\n"
+  +"・スタッフ一人ひとりを具体的な行動で観察し、良い点・課題・寄り添いを書く。\n"
+  +"・やわらかい推量（「〜かなと思いました」「〜だろうなと感じました」）。\n"
+  +"・前向きに締める（「引き続き見ていきます」「〜できるようにしていきます」）。\n"
+  +"・大げさにせず事実ベースで、でも温かく。箇条書きの内容以外の事実は作らない。\n\n"
+  +"【出力フォーマット】（この見出し・形を厳密に守る。目標/実績/客数・①②③の目標文・テーマはそのまま使う。箇条書きが（なし）の項目は無理に書かず、簡潔にするか省略してよい）\n"
+  +"お疲れ様です。本日の日報をお送りいたします。\nご確認よろしくお願いいたします。\n\n"
+  +date+"\n1【今日の作業報告】\n"+works+"\n\n"
+  +"2【今日の売上目標と実績とその考察】\n目標："+tgt+"円\n実績："+act+"円（"+g+"名）\n（ここに考察の文章）\n\n"
+  +"3【気づき】（スタッフの状況、その他の報告）\nテーマ「"+theme+"」\n①"+g1+"\n（ここに①の文章）\n②"+g2+"\n（ここに②の文章）\n③"+g3+"\n（ここに③の文章）\n\n（ここにスタッフごとの文章。名前を見出しにして、その下に文章）\n\n"
+  +"4【SVに相談♪】\n（あれば内容、なければ見出しのみ）\n\n"
+  +"【箇条書きメモ】\n"
+  +"◆考察：\n"+nz($("rConsider").value)+"\n"
+  +"◆①について（"+g1+"）：\n"+nz($("r1").value)+"\n"
+  +"◆②について（"+g2+"）：\n"+nz($("r2").value)+"\n"
+  +"◆③について（"+g3+"）：\n"+nz($("r3").value)+"\n"
+  +"◆スタッフ（名前＋メモ）：\n"+nz($("rStaff").value)+"\n"
+  +"◆SV相談：\n"+nz($("rSV").value)+"\n\n"
+  +"完成した日報の本文だけを出力してください（前置き・説明・コードブロック記号は不要）。";
+}
+async function generateReport(){
+  const key=$("geminiKey").value.trim();
+  if(!key){ toast("⚙設定でGemini APIキーを入れてください"); $("settingsModal").classList.add("show"); return; }
+  const b=$("genBtn"); const o=b.textContent; b.disabled=true; b.textContent="作成中…"; $("genState").textContent="作成中…（数秒〜十数秒お待ちください）";
+  try{
+    const url="https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key="+encodeURIComponent(key);
+    const body={contents:[{parts:[{text:buildPrompt()}]}],generationConfig:{temperature:0.7}};
+    const r=await fetch(url,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(body)});
+    if(!r.ok){ const e=await r.text(); throw new Error(r.status+" "+e.slice(0,140)); }
+    const data=await r.json();
+    let text=data&&data.candidates&&data.candidates[0]&&data.candidates[0].content&&data.candidates[0].content.parts&&data.candidates[0].content.parts[0].text;
+    if(text){ text=text.replace(/^```[a-zA-Z]*\n?/,"").replace(/\n?```\s*$/,"").trim(); $("genReport").value=text; renderReport(); save(); $("genState").textContent="✓ 文章にしました（下の枠で手直しできます）"; toast("文章にしました"); }
+    else{ $("genState").textContent="生成結果が空でした（もう一度お試しください）"; toast("生成できませんでした"); }
+  }catch(e){ $("genState").textContent="✗ 失敗："+String((e&&e.message)||e); toast("生成に失敗しました（キー・通信をご確認ください）"); }
+  finally{ b.disabled=false; b.textContent=o; }
+}
+
 // ===== 初期化 =====
 function startApp(){
   $("login").style.display="none"; $("app").style.display="block"; $("bar").style.display="flex";
@@ -561,7 +633,7 @@ function startApp(){
   if(!$("shiftUrl").value) $("shiftUrl").value=SHEET_DEFAULTS.shift;
   renderWorkChips();
   setDate(0); // 起動時は常に当日（今日）に
-  wire(); renderTheme(); renderReport();
+  wire(); renderTheme(); sync(); // sync()でテーマ・目標を日報へ引き継ぎ＋プレビュー
 }
 
 // ===== ログイン =====
