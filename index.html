@@ -311,6 +311,7 @@ let contentDate=null;  // 今表示中の入力がどの日付の分か
 function clearDay(){
   ["rTarget","rActual","rGuests","rOther","rSV","genReport"].forEach(id=>{ $(id).value=""; delete $(id).dataset.touched; });
   ["rConsider","r1","r2","r3"].forEach(id=>$(id).value=BULLET_DEFAULT);
+  workSet=new Set(DEFAULT_WORKS); extraWorks=[]; renderWorkChips(); // 作業チップも初期の3つ（開店作業・接客、レジ・閉店作業）に戻す
   staff=[]; renderStaff();
 }
 function renderStaff(){
