@@ -711,18 +711,32 @@ function fixNames(text){
 async function generateReport(){
   const key=$("geminiKey").value.trim();
   if(!key){ toast("⚙設定でGemini APIキーを入れてください"); $("settingsModal").classList.add("show"); return; }
-  const b=$("genBtn"); const o=b.textContent; b.disabled=true; b.textContent="作成中…"; $("genState").textContent="作成中…（数秒〜十数秒お待ちください）";
+  const b=$("genBtn"); const o=b.textContent; b.disabled=true; b.textContent="作成中…";
+  const body={contents:[{parts:[{text:buildPrompt()}]}],generationConfig:{temperature:0.7}};
+  const models=["gemini-2.5-flash","gemini-flash-latest","gemini-2.5-flash","gemini-flash-latest","gemini-2.5-flash"];
+  const sleep=ms=>new Promise(r=>setTimeout(r,ms));
+  let lastMsg="";
   try{
-    const url="https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key="+encodeURIComponent(key);
-    const body={contents:[{parts:[{text:buildPrompt()}]}],generationConfig:{temperature:0.7}};
-    const r=await fetch(url,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(body)});
-    if(!r.ok){ const e=await r.text(); throw new Error(r.status+" "+e.slice(0,140)); }
-    const data=await r.json();
-    let text=data&&data.candidates&&data.candidates[0]&&data.candidates[0].content&&data.candidates[0].content.parts&&data.candidates[0].content.parts[0].text;
-    if(text){ text=text.replace(/^```[a-zA-Z]*\n?/,"").replace(/\n?```\s*$/,"").trim(); text=fixNames(text); $("genReport").value=text; renderReport(); save(); $("genState").textContent="✓ 文章にしました（下の枠で手直しできます）"; toast("文章にしました"); }
-    else{ $("genState").textContent="生成結果が空でした（もう一度お試しください）"; toast("生成できませんでした"); }
-  }catch(e){ $("genState").textContent="✗ 失敗："+String((e&&e.message)||e); toast("生成に失敗しました（キー・通信をご確認ください）"); }
-  finally{ b.disabled=false; b.textContent=o; }
+    for(let i=0;i<models.length;i++){
+      $("genState").textContent = i===0 ? "作成中…（数秒〜十数秒お待ちください）" : "混雑のため再試行中…（"+i+"回目）";
+      try{
+        const url="https://generativelanguage.googleapis.com/v1beta/models/"+models[i]+":generateContent?key="+encodeURIComponent(key);
+        const r=await fetch(url,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(body)});
+        if(r.ok){
+          const data=await r.json();
+          let text=data&&data.candidates&&data.candidates[0]&&data.candidates[0].content&&data.candidates[0].content.parts&&data.candidates[0].content.parts[0].text;
+          if(text){ text=fixNames(text.replace(/^```[a-zA-Z]*\n?/,"").replace(/\n?```\s*$/,"").trim()); $("genReport").value=text; renderReport(); save(); $("genState").textContent="✓ 文章にしました（下の枠で手直しできます）"; toast("文章にしました"); return; }
+          lastMsg="生成結果が空";
+        } else {
+          const e=await r.text(); lastMsg=r.status+" "+e.slice(0,80);
+          if(![429,500,503].includes(r.status)) break; // 恒久的なエラー（キー違いなど）は打ち切り
+        }
+      }catch(e){ lastMsg=String((e&&e.message)||e); }
+      if(i<models.length-1) await sleep(1800);
+    }
+    $("genState").textContent="✗ 失敗："+lastMsg+"／少し待って、もう一度「文章にする」を押してください";
+    toast("混雑などで作成できませんでした。少し待って再度お試しください");
+  } finally { b.disabled=false; b.textContent=o; }
 }
 
 // ===== 初期化 =====
