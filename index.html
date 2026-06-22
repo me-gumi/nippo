@@ -306,6 +306,12 @@ const PLS="shimokita_presets_v2";
 let presets=loadPresets();
 let workSet=new Set(DEFAULT_WORKS), extraWorks=[];
 let staff=[]; // [{name,bullets}]
+let lastWorkedOn=null; // 最後に編集した暦日（別日になったら当日分をクリア）
+function clearDay(){
+  ["rTarget","rActual","rGuests","rOther","rSV","genReport"].forEach(id=>{ $(id).value=""; delete $(id).dataset.touched; });
+  ["rConsider","r1","r2","r3"].forEach(id=>$(id).value=BULLET_DEFAULT);
+  staff=[]; renderStaff();
+}
 function renderStaff(){
   const wrap=$("staffItems"); wrap.innerHTML="";
   staff.forEach((m,i)=>{
@@ -487,7 +493,7 @@ function save(){
     rConsider:$("rConsider").value,rTheme:$("rTheme").value,r1:$("r1").value,r2:$("r2").value,r3:$("r3").value,
     rOther:$("rOther").value,staff:staff,rSV:$("rSV").value,works:[...workSet],extraWorks,
     salesUrl:$("salesUrl").value,shiftUrl:$("shiftUrl").value,
-    genReport:$("genReport").value,geminiKey:$("geminiKey").value,
+    genReport:$("genReport").value,geminiKey:$("geminiKey").value,workedOn:todayIso(),
     touched:["rTheme","rTarget"].filter(id=>$(id).dataset.touched)
   };
   try{ localStorage.setItem(LS,JSON.stringify(d)); }catch(e){}
@@ -498,6 +504,7 @@ function load(){
   ["themeSel","theme","g1Sel","g1","g2Sel","g2","g3Sel","g3","appNum","sales","memo",
    "rdate","rTarget","rActual","rGuests","rConsider","rTheme","r1","r2","r3","rOther","rSV","salesUrl","shiftUrl","genReport","geminiKey"].forEach(k=>set(k,d[k]));
   if(Array.isArray(d.staff)) staff=d.staff;
+  lastWorkedOn=d.workedOn||null;
   if(d.extraWorks) extraWorks=d.extraWorks; // 作業の選択は毎回はじめからDEFAULT_WORKS（記憶しない）
   (d.touched||[]).forEach(id=>$(id).dataset.touched="1");
   return true;
@@ -682,7 +689,8 @@ function buildPrompt(){
   +"・やわらかい推量（「〜かなと思いました」「〜だろうなと感じました」）。\n"
   +"・前向きに締める（「引き続き見ていきます」「〜できるようにしていきます」）。\n"
   +"・大げさにせず事実ベースで、でも温かく。箇条書きの内容以外の事実は作らない。\n"
-  +"・「感じております」ではなく「感じます」。「良い」はひらがなで「よい」と書く。\n\n"
+  +"・「感じております」ではなく「感じます」。「良い」はひらがなで「よい」と書く。\n"
+  +"・③のアプリ獲得人数の報告は『○名でした。』または『○名で目標達成していません。』の形で簡潔に始める。『本日の人数は』『アプリ獲得は』などの前置きは付けない。\n\n"
   +"【名前の表記（厳守）】\n"
   +"・スタッフの名前は、与えられた表記を一字一句そのまま使う。敬称（さん／ちゃん 等）を勝手に足したり外したりしない。\n"
   +"・正しい表記の例：パーカー（×パーカーさん）／サブロー（×サブローさん）／ちゃまさん／おむちゃんさん／たきちゃん。\n"
@@ -691,9 +699,9 @@ function buildPrompt(){
   +"【出力フォーマット】（この見出し・形を厳密に守る。目標/実績/客数・①②③の目標文・テーマはそのまま使う。箇条書きが（なし）の項目は無理に書かず、簡潔にするか省略してよい）\n"
   +"お疲れ様です。本日の日報をお送りいたします。\nご確認よろしくお願いいたします。\n\n"
   +date+"\n1【今日の作業報告】\n"+works+"\n\n"
-  +"2【今日の売上目標と実績とその考察】\n目標："+tgt+"円\n実績："+act+"円（"+g+"名）\n（ここに考察の文章）\n\n"
+  +"2【今日の売上目標と実績とその考察】\n目標："+tgt+"円\n実績："+act+"円（"+g+"名）\n\n（ここに考察の文章。実績の行との間は必ず1行あける）\n\n"
   +"3【気づき】（スタッフの状況、その他の報告）\nテーマ「"+theme+"」\n①"+g1+"\n（ここに①の文章）\n②"+g2+"\n（ここに②の文章）\n③"+g3+"\n（ここに③の文章）\n\n（スタッフを一人ずつ、名前を見出しにしてその下に文章。「その他」のメモがあればスタッフの後に。なければスタッフのコメントで締める）\n\n"
-  +"4【SVに相談♪】\n（あれば内容、なければ見出しのみで一言）\n\n"
+  +"4【SVに相談♪】\n（SV相談のメモがあればその内容だけを書く。なければ見出し「4【SVに相談♪】」だけにして、その後には一切何も書かない＝空欄）\n\n"
   +"【箇条書きメモ】\n"
   +"◆考察：\n"+nz(cleanBullets($("rConsider").value))+"\n"
   +"◆①について（"+g1+"）：\n"+nz(cleanBullets($("r1").value))+"\n"
@@ -729,7 +737,9 @@ async function generateReport(){
         if(r.ok){
           const data=await r.json();
           let text=data&&data.candidates&&data.candidates[0]&&data.candidates[0].content&&data.candidates[0].content.parts&&data.candidates[0].content.parts[0].text;
-          if(text){ text=polishStyle(fixNames(text.replace(/^```[a-zA-Z]*\n?/,"").replace(/\n?```\s*$/,"").trim())); $("genReport").value=text; renderReport(); save(); $("genState").textContent="✓ 文章にしました（下の枠で手直しできます）"; toast("文章にしました"); return; }
+          if(text){ text=polishStyle(fixNames(text.replace(/^```[a-zA-Z]*\n?/,"").replace(/\n?```\s*$/,"").trim()));
+            if(!$("rSV").value.trim()) text=text.replace(/(【SVに相談[^】]*】)[\s\S]*$/,"$1"); // SVメモが無ければ見出しのみ
+            $("genReport").value=text; renderReport(); save(); $("genState").textContent="✓ 文章にしました（下の枠で手直しできます）"; toast("文章にしました"); return; }
           lastMsg="生成結果が空";
         } else {
           const e=await r.text(); lastMsg=r.status+" "+e.slice(0,80);
@@ -752,6 +762,7 @@ function startApp(){
     applyFromSelect("theme"); applyFromSelect("g1"); applyFromSelect("g2"); applyFromSelect("g3"); }
   if(!$("salesUrl").value) $("salesUrl").value=SHEET_DEFAULTS.sales;
   if(!$("shiftUrl").value) $("shiftUrl").value=SHEET_DEFAULTS.shift;
+  if(restored && lastWorkedOn && lastWorkedOn!==todayIso()) clearDay(); // 別の日に開いたら前日分をクリア
   ["rConsider","r1","r2","r3"].forEach(id=>{ if(!$(id).value.trim()) $(id).value=BULLET_DEFAULT; });
   renderWorkChips(); renderStaff();
   setDate(0); // 起動時は常に当日（今日）に
