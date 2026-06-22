@@ -160,9 +160,13 @@
       <label style="margin-top:16px"><span class="badge">3</span>フライヤー＆アプリ獲得</label>
       <select id="g3Sel"></select>
       <div class="row mt6">
-        <div style="flex:0 0 130px">
-          <input type="number" id="appNum" value="15" min="0" inputmode="numeric">
-          <div class="hint">アプリ獲得名数</div>
+        <div style="flex:0 0 auto">
+          <div style="display:flex;gap:6px;align-items:center">
+            <input type="number" id="appNum" value="15" min="0" inputmode="numeric" style="width:84px">
+            <button class="btn ghost mini" type="button" data-appnum="15">15</button>
+            <button class="btn ghost mini" type="button" data-appnum="30">30</button>
+          </div>
+          <div class="hint">アプリ獲得名数（15・30はボタン、その他は数字を入力）</div>
         </div>
         <div class="hint" style="align-self:center">③の「アプリ◯名以上」に反映されます</div>
       </div>
@@ -401,10 +405,14 @@ function applyG3num(){
   if(sel.value!=="custom"){ $("g3").value=fromToken(presets.g3[Number(sel.value)]||""); }
   else{ $("g3").value=$("g3").value.replace(/アプリ\s*[0-9０-９]+\s*名/,"アプリ"+($("appNum").value||"◯")+"名"); }
 }
+function updateAppNumBtns(){
+  const v=String($("appNum").value);
+  document.querySelectorAll("[data-appnum]").forEach(b=>b.classList.toggle("ghost",b.dataset.appnum!==v));
+}
 function sync(){
   if(!$("rTheme").dataset.touched) $("rTheme").value=$("theme").value;
   if(!$("rTarget").dataset.touched && $("sales").value) $("rTarget").value=$("sales").value;
-  renderTheme(); renderReport(); save();
+  updateAppNumBtns(); renderTheme(); renderReport(); save();
 }
 
 // ===== プレビュー =====
@@ -523,7 +531,8 @@ function wire(){
   ["theme","g1","g2","g3"].forEach(k=>{
     $(SEL[k]).onchange=()=>{ applyFromSelect(k); sync(); };
   });
-  $("appNum").oninput=()=>{ applyG3num(); sync(); };
+  $("appNum").oninput=()=>{ applyG3num(); updateAppNumBtns(); sync(); };
+  document.querySelectorAll("[data-appnum]").forEach(b=>b.onclick=()=>{ $("appNum").value=b.dataset.appnum; applyG3num(); updateAppNumBtns(); sync(); });
   // 保存・削除ボタン
   document.querySelectorAll("[data-save]").forEach(b=>b.onclick=()=>savePreset(b.dataset.save));
   document.querySelectorAll("[data-del]").forEach(b=>b.onclick=()=>delPreset(b.dataset.del));
@@ -790,7 +799,7 @@ function startApp(){
   if(!$("shiftUrl").value) $("shiftUrl").value=SHEET_DEFAULTS.shift;
   if(restored && lastWorkedOn && lastWorkedOn!==todayIso()) clearDay(); // 別の日に開いたら前日分をクリア
   ["rConsider","r1","r2","r3"].forEach(id=>{ if(!$(id).value.trim()) $(id).value=BULLET_DEFAULT; });
-  renderWorkChips(); renderStaff();
+  renderWorkChips(); renderStaff(); updateAppNumBtns();
   setDate(0); // 起動時は常に当日（今日）に
   wire(); renderTheme(); sync(); // sync()でテーマ・目標を日報へ引き継ぎ＋プレビュー
 }
