@@ -194,8 +194,8 @@
     <div class="card">
       <h2><span class="num">1</span>今日の作業報告</h2>
       <div class="row" style="margin-bottom:8px">
-        <div style="flex:0 0 auto"><button class="btn ghost mini" type="button" onclick="setDate(0)">今日</button></div>
-        <div style="flex:0 0 auto"><button class="btn ghost mini" type="button" onclick="setDate(-1)">昨日</button></div>
+        <div style="flex:0 0 auto"><button class="btn ghost mini" type="button" onclick="switchDate(isoOffset(0))">今日</button></div>
+        <div style="flex:0 0 auto"><button class="btn ghost mini" type="button" onclick="switchDate(isoOffset(-1))">昨日</button></div>
         <div><input type="date" id="rdate"></div>
       </div>
       <div class="presetbar" style="margin-bottom:10px">
@@ -307,6 +307,7 @@ let presets=loadPresets();
 let workSet=new Set(DEFAULT_WORKS), extraWorks=[];
 let staff=[]; // [{name,bullets}]
 let lastWorkedOn=null; // 最後に編集した暦日（別日になったら当日分をクリア）
+let contentDate=null;  // 今表示中の入力がどの日付の分か
 function clearDay(){
   ["rTarget","rActual","rGuests","rOther","rSV","genReport"].forEach(id=>{ $(id).value=""; delete $(id).dataset.touched; });
   ["rConsider","r1","r2","r3"].forEach(id=>$(id).value=BULLET_DEFAULT);
@@ -453,10 +454,14 @@ function switchTab(t){
   document.querySelectorAll(".page").forEach(el=>el.classList.remove("active"));
   $("page-"+t).classList.add("active"); window.scrollTo(0,0);
 }
-function setDate(off){
-  const d=new Date(); d.setDate(d.getDate()+off);
-  $("rdate").value=d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0");
-  renderReport(); save();
+function isoOffset(off){ const d=new Date(); d.setDate(d.getDate()+off); return d.getFullYear()+"-"+pad2(d.getMonth()+1)+"-"+pad2(d.getDate()); }
+function setDate(off){ const iso=isoOffset(off); $("rdate").value=iso; contentDate=iso; renderReport(); save(); }
+function hasDayContent(){ return !!($("genReport").value.trim()||$("rActual").value.trim()||$("rTarget").value.trim()||$("rGuests").value.trim()||cleanBullets($("rConsider").value)||cleanBullets($("r1").value)||cleanBullets($("r2").value)||cleanBullets($("r3").value)||$("rOther").value.trim()||$("rSV").value.trim()||staff.some(s=>cleanBullets(s.bullets))); }
+function switchDate(newIso){
+  if(!newIso) return;
+  if(newIso===contentDate){ $("rdate").value=newIso; renderReport(); save(); return; }
+  if(hasDayContent() && !confirm("別の日（"+fmtDate(newIso)+"）の日報に切り替えます。今の入力を消してよいですか？")){ $("rdate").value=contentDate||newIso; return; }
+  clearDay(); $("rdate").value=newIso; contentDate=newIso; renderReport(); save();
 }
 
 // ===== トースト＆コピー =====
@@ -537,7 +542,8 @@ function wire(){
   };
   // テキスト入力
   ["theme","g1","g2","g3","sales","memo"].forEach(id=>$(id).oninput=sync);
-  ["rdate","rTarget","rActual","rGuests","rConsider","rTheme","r1","r2","r3","rOther","rSV","genReport"].forEach(id=>$(id).oninput=()=>{ renderReport(); save(); });
+  ["rTarget","rActual","rGuests","rConsider","rTheme","r1","r2","r3","rOther","rSV","genReport"].forEach(id=>$(id).oninput=()=>{ renderReport(); save(); });
+  $("rdate").onchange=()=>switchDate($("rdate").value);
   $("addStaff").onclick=()=>addStaff("");
   bulletify($("rConsider"),$("plusConsider")); bulletify($("r1"),$("plus1")); bulletify($("r2"),$("plus2")); bulletify($("r3"),$("plus3"));
   $("genBtn").onclick=generateReport;
