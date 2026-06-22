@@ -38,6 +38,10 @@
   .presetbar{display:flex;gap:8px;margin-top:8px;flex-wrap:wrap}
   .goalrow{display:flex;align-items:flex-start;gap:6px;margin:14px 0 4px;font-size:13px;font-weight:700;color:var(--brand-d)}
   .goallabel{flex:1;line-height:1.5}
+  .sitem{border:1px solid var(--line);border-radius:10px;padding:10px;margin-top:10px;background:#fffaf4}
+  .sitem .shead{display:flex;align-items:center;gap:8px;margin-bottom:6px}
+  .sitem .sname{flex:1;font-weight:700;color:var(--brand-d)}
+  .sitem .sdel{flex:0 0 auto;padding:6px 10px}
   .hint{font-size:12px;color:var(--sub);margin-top:6px}
   .mt6{margin-top:6px}
   .badge{display:inline-grid;place-items:center;background:var(--brand);color:#fff;width:20px;height:20px;border-radius:50%;font-size:12px;margin-right:6px}
@@ -228,8 +232,12 @@
       <div class="goalrow"><span class="badge">3</span><span class="goallabel" id="gl3"></span></div>
       <textarea id="r3" placeholder="③についての箇条書き"></textarea>
 
-      <label style="margin-top:14px">スタッフ・その他（名前ごとに箇条書き）</label>
-      <textarea id="rStaff" style="min-height:150px" placeholder="「接続」すると出勤メンバーが見出しで入ります。名前の下に箇条書きで。&#10;例）&#10;たきちゃん&#10;・アプリ紹介よかった&#10;・声かけ増えた&#10;&#10;サブロー&#10;・プラス紹介が安定"></textarea>
+      <label style="margin-top:14px">スタッフ（一人ずつ・名前は編集／追加／削除できます）</label>
+      <div id="staffItems"></div>
+      <div class="presetbar"><button class="btn ghost mini" id="addStaff" type="button">＋ スタッフを追加</button></div>
+
+      <label style="margin-top:14px">その他（あれば・任意）</label>
+      <textarea id="rOther" style="min-height:56px" placeholder="スタッフ以外の報告があれば箇条書きで（なければ空欄でOK）"></textarea>
     </div>
 
     <div class="card">
@@ -293,6 +301,23 @@ const PLS="shimokita_presets_v2";
 
 let presets=loadPresets();
 let workSet=new Set(DEFAULT_WORKS), extraWorks=[];
+let staff=[]; // [{name,bullets}]
+function renderStaff(){
+  const wrap=$("staffItems"); wrap.innerHTML="";
+  staff.forEach((m,i)=>{
+    const d=document.createElement("div"); d.className="sitem";
+    const head=document.createElement("div"); head.className="shead";
+    const name=document.createElement("input"); name.className="sname"; name.value=m.name||""; name.placeholder="名前";
+    name.oninput=()=>{ staff[i].name=name.value; renderReport(); save(); };
+    const del=document.createElement("button"); del.type="button"; del.className="btn danger mini sdel"; del.textContent="🗑";
+    del.onclick=()=>{ staff.splice(i,1); renderStaff(); renderReport(); save(); };
+    head.appendChild(name); head.appendChild(del);
+    const ta=document.createElement("textarea"); ta.value=m.bullets||""; ta.placeholder="この人についての箇条書き（改行でOK）"; ta.style.minHeight="56px";
+    ta.oninput=()=>{ staff[i].bullets=ta.value; renderReport(); save(); };
+    d.appendChild(head); d.appendChild(ta); wrap.appendChild(d);
+  });
+}
+function addStaff(name){ staff.push({name:name||"",bullets:""}); renderStaff(); renderReport(); save(); }
 
 // ===== プリセット保存/読込 =====
 function loadPresets(){
@@ -387,7 +412,8 @@ function buildReport(){
   s+=gb("①",$("g1").value,$("r1").value);
   s+=gb("②",$("g2").value,$("r2").value);
   s+=gb("③",$("g3").value,$("r3").value);
-  if($("rStaff").value.trim()) s+="\n"+$("rStaff").value.trim()+"\n";
+  staff.forEach(m=>{ const n=(m.name||"").trim(), b=(m.bullets||"").trim(); if(n||b){ s+="\n"+n+"\n"; if(b) s+=b+"\n"; } });
+  if($("rOther").value.trim()) s+="\n"+$("rOther").value.trim()+"\n";
   s+="\n4【SVに相談♪】";
   if($("rSV").value.trim()) s+="\n"+$("rSV").value.trim();
   return s;
@@ -428,7 +454,8 @@ $("resetBtn").onclick=()=>{
     $("appNum").value=15; $("sales").value=""; $("memo").value="";
     applyFromSelect("theme"); applyFromSelect("g1"); applyFromSelect("g2"); applyFromSelect("g3"); sync();
   }else{
-    ["rTarget","rActual","rGuests","rConsider","rTheme","r1","r2","r3","rStaff","rSV"].forEach(id=>{ $(id).value=""; delete $(id).dataset.touched; });
+    ["rTarget","rActual","rGuests","rConsider","rTheme","r1","r2","r3","rOther","rSV","genReport"].forEach(id=>{ $(id).value=""; delete $(id).dataset.touched; });
+    staff=[]; renderStaff();
     workSet=new Set(DEFAULT_WORKS); extraWorks=[]; renderWorkChips(); setDate(0); sync();
   }
   save();
@@ -442,7 +469,7 @@ function save(){
     g3Sel:$("g3Sel").value,g3:$("g3").value,appNum:$("appNum").value,sales:$("sales").value,memo:$("memo").value,
     rdate:$("rdate").value,rTarget:$("rTarget").value,rActual:$("rActual").value,rGuests:$("rGuests").value,
     rConsider:$("rConsider").value,rTheme:$("rTheme").value,r1:$("r1").value,r2:$("r2").value,r3:$("r3").value,
-    rStaff:$("rStaff").value,rSV:$("rSV").value,works:[...workSet],extraWorks,
+    rOther:$("rOther").value,staff:staff,rSV:$("rSV").value,works:[...workSet],extraWorks,
     salesUrl:$("salesUrl").value,shiftUrl:$("shiftUrl").value,
     genReport:$("genReport").value,geminiKey:$("geminiKey").value,
     touched:["rTheme","rTarget"].filter(id=>$(id).dataset.touched)
@@ -453,7 +480,8 @@ function load(){
   let d; try{ d=JSON.parse(localStorage.getItem(LS)); }catch(e){} if(!d) return false;
   const set=(id,v)=>{ if(v!==undefined&&v!==null) $(id).value=v; };
   ["themeSel","theme","g1Sel","g1","g2Sel","g2","g3Sel","g3","appNum","sales","memo",
-   "rdate","rTarget","rActual","rGuests","rConsider","rTheme","r1","r2","r3","rStaff","rSV","salesUrl","shiftUrl","genReport","geminiKey"].forEach(k=>set(k,d[k]));
+   "rdate","rTarget","rActual","rGuests","rConsider","rTheme","r1","r2","r3","rOther","rSV","salesUrl","shiftUrl","genReport","geminiKey"].forEach(k=>set(k,d[k]));
+  if(Array.isArray(d.staff)) staff=d.staff;
   if(d.extraWorks) extraWorks=d.extraWorks; // 作業の選択は毎回はじめからDEFAULT_WORKS（記憶しない）
   (d.touched||[]).forEach(id=>$(id).dataset.touched="1");
   return true;
@@ -486,7 +514,8 @@ function wire(){
   };
   // テキスト入力
   ["theme","g1","g2","g3","sales","memo"].forEach(id=>$(id).oninput=sync);
-  ["rdate","rTarget","rActual","rGuests","rConsider","rTheme","r1","r2","r3","rStaff","rSV","genReport"].forEach(id=>$(id).oninput=()=>{ renderReport(); save(); });
+  ["rdate","rTarget","rActual","rGuests","rConsider","rTheme","r1","r2","r3","rOther","rSV","genReport"].forEach(id=>$(id).oninput=()=>{ renderReport(); save(); });
+  $("addStaff").onclick=()=>addStaff("");
   $("genBtn").onclick=generateReport;
   $("genClear").onclick=()=>{ $("genReport").value=""; renderReport(); save(); $("genState").textContent="完成文をクリアしました（箇条書き表示に戻りました）"; };
   $("geminiKey").oninput=save;
@@ -566,7 +595,8 @@ async function connectReport(){
       msg.push("数字");
     }
     if(members&&members.length){
-      if(!$("rStaff").value.trim()){ $("rStaff").value=members.join("\n\n")+"\n"; }
+      members.forEach(nm=>{ if(!staff.some(s=>(s.name||"").trim()===nm)) staff.push({name:nm,bullets:""}); });
+      renderStaff();
       msg.push("出勤メンバー("+members.join("・")+")");
     }
     renderReport(); save();
@@ -576,13 +606,58 @@ async function connectReport(){
 }
 
 // ===== AIで文章にする（Gemini無料枠） =====
+// やえさんが実際に書いた過去の日報（文体のお手本／few-shot）
+const YAE_EXAMPLES=`（お手本1）
+6/5(土)
+2【今日の売上目標と実績とその考察】
+目標：204,455円
+実績：204,823円（106名）
+
+海外のお客様の単価をなかなか伸ばすことができませんでした。落ち着いた時間帯が多かったこともあり、お声がけのスピード感が全体的に落ちてしまっておりプラスのご紹介までたどり着くことができていませんでした。
+国内のお客様に関しては、企画目当てのリピーターさんが多かったこともあり単価は高めでした。「月のはじめに新しいステッカーが出ると聞いて、、」とお店に来てくださる2回目、3回目のお客様が増えました。日々のお伝えの成果を感じました。
+
+3【気づき】（スタッフの状況、その他の報告）
+テーマ「目標達成！」
+①お客様のお持ちのアイテムに合わせて関連デザインのステッカーや雑貨、iPadなどをプラスでご紹介しよう。
+上にも記載しましたが今日はプラスのご紹介が弱かったです。取り組むメンバーに偏りがありました。
+②意味もなくその場に立ち止まらず、そして人を選ばず、自分の持ち場のお客様にしっかりお声がけしよう。
+たきちゃん対策で設定しました。たきちゃんの中での「最低限」のレベルが低い気がしたので途中で声をかけて最低限のラインを引き上げました。そのあとからは意識してくれてはいましたがたまに抜けがあるので今後も目標に設定しつつ見守ります。
+
+ちゃまさん
+ファーストでのお伝え内容を意識してくれていました。フロアでのアプリ紹介は弱かったです。レジでのお声がけを流すことはありませんでしたが雑さは感じられ惜しく感じました。
+
+たきちゃん
+よい動きをしていたときを逃さず直後に「今の動きよかったので今の感じで！」とお伝えしました。ステップアップを一緒に見ながら接客で意識して欲しいことをいくつかお伝えしました。さっそく動き方を意識してくれているように見えました。内容をパーカーにも共有して一緒に見守っていけたらと思います。
+
+（お手本2）
+6/7(日)
+2【今日の売上目標と実績とその考察】
+目標：331,587円
+実績：262,094円（148名）
+
+天候の影響を受けて、特別混雑する時間帯はありませんでした。今日も新作と企画あわせてチェックしにきてくださったリピーターさんが多くいらっしゃいました。閉店時間までご来店には恵まれ、ギリギリまで売上・取引数・アプリを獲得することができました。海外のお客様の単価が高く、売上の面でとても助けられました。
+
+3【気づき】（スタッフの状況、その他の報告）
+テーマ「売上もアプリも目標達成！」
+①お客様のお持ちのアイテムに合わせて関連デザインのステッカーや雑貨、iPadなどをプラスでご紹介しよう。
+まだメンバーに偏りがあります。サブローは安定してきました。パーカーはそこまで意識が回らないようです。たきちゃんもまだ不慣れではあるものの、今日は雑貨コーナーのお客様に反応してお声がけしてくれている場面もありました。
+
+パーカー
+目標意識が弱く感じました。お伝えが甘かったり、プラスのご紹介に取り組んでいなかったりしました。このタイミングでプラスのご紹介ができたのではないか、という気づきがあったときは都度伝えるようにしました。
+
+サブロー
+プラスのご紹介は誰よりも意識してくれています。サブローのご紹介で実際にプラスで手にしていただけたりiPadでご注文いただけたりすることも何度かありました。
+
+たきちゃん
+今日はたきちゃんのスイッチを探して押すこと、たきちゃんを伸ばすことを個人的な目標にしていました。今日一日でぐんぐん伸びたように感じます。とても頼もしい動きと質の高いお声がけができていました。引き続き成長できるように見ていきます。`;
 function buildPrompt(){
   const date=fmtDate($("rdate").value);
   const works=WORKS.concat(extraWorks).filter(w=>workSet.has(w)).map(w=>"・"+w).join("\n");
   const tgt=yen($("rTarget").value), act=yen($("rActual").value), g=$("rGuests").value||"";
   const theme=$("rTheme").value.trim(), g1=$("g1").value.trim(), g2=$("g2").value.trim(), g3=$("g3").value.trim();
   const nz=v=>{ v=(v||"").trim(); return v||"（なし）"; };
-  return "あなたは雑貨店の店長「やえ」として、その日の日報を書きます。以下の【文体の特徴】を必ず守り、【箇条書きメモ】を自然な文章に書き起こしてください。\n\n"
+  const staffText=staff.filter(m=>(m.name||"").trim()).map(m=>(m.name||"").trim()+"：\n"+((m.bullets||"").trim()||"（メモなし）")).join("\n\n")||"（なし）";
+  return "あなたは雑貨店の店長「やえ」として、その日の日報を書きます。【お手本】の口調・粒度・温度感を必ずまねて、【箇条書きメモ】を自然な文章に書き起こしてください。\n\n"
   +"【文体の特徴】\n"
   +"・ていねいな「です・ます」調。謙虚でやわらかい言い回し。\n"
   +"・「状況→自分がした対応→その理由→結果→今後どうするか」の流れ。\n"
@@ -594,18 +669,20 @@ function buildPrompt(){
   +"・スタッフの名前は、与えられた表記を一字一句そのまま使う。敬称（さん／ちゃん 等）を勝手に足したり外したりしない。\n"
   +"・正しい表記の例：パーカー（×パーカーさん）／サブロー（×サブローさん）／ちゃまさん／おむちゃんさん／たきちゃん。\n"
   +"・本文中で名前を出すときも必ずこの表記に統一する。\n\n"
+  +"【お手本（やえさんが過去に実際に書いた日報。この書き方・粒度・温かさを必ずまねる。ただし内容は今日のメモにだけ基づき、お手本の出来事や数字は使わない）】\n"+YAE_EXAMPLES+"\n\n"
   +"【出力フォーマット】（この見出し・形を厳密に守る。目標/実績/客数・①②③の目標文・テーマはそのまま使う。箇条書きが（なし）の項目は無理に書かず、簡潔にするか省略してよい）\n"
   +"お疲れ様です。本日の日報をお送りいたします。\nご確認よろしくお願いいたします。\n\n"
   +date+"\n1【今日の作業報告】\n"+works+"\n\n"
   +"2【今日の売上目標と実績とその考察】\n目標："+tgt+"円\n実績："+act+"円（"+g+"名）\n（ここに考察の文章）\n\n"
-  +"3【気づき】（スタッフの状況、その他の報告）\nテーマ「"+theme+"」\n①"+g1+"\n（ここに①の文章）\n②"+g2+"\n（ここに②の文章）\n③"+g3+"\n（ここに③の文章）\n\n（ここにスタッフごとの文章。名前を見出しにして、その下に文章）\n\n"
-  +"4【SVに相談♪】\n（あれば内容、なければ見出しのみ）\n\n"
+  +"3【気づき】（スタッフの状況、その他の報告）\nテーマ「"+theme+"」\n①"+g1+"\n（ここに①の文章）\n②"+g2+"\n（ここに②の文章）\n③"+g3+"\n（ここに③の文章）\n\n（スタッフを一人ずつ、名前を見出しにしてその下に文章。「その他」のメモがあればスタッフの後に。なければスタッフのコメントで締める）\n\n"
+  +"4【SVに相談♪】\n（あれば内容、なければ見出しのみで一言）\n\n"
   +"【箇条書きメモ】\n"
   +"◆考察：\n"+nz($("rConsider").value)+"\n"
   +"◆①について（"+g1+"）：\n"+nz($("r1").value)+"\n"
   +"◆②について（"+g2+"）：\n"+nz($("r2").value)+"\n"
   +"◆③について（"+g3+"）：\n"+nz($("r3").value)+"\n"
-  +"◆スタッフ（名前＋メモ）：\n"+nz($("rStaff").value)+"\n"
+  +"◆スタッフ（一人ずつ）：\n"+staffText+"\n"
+  +"◆その他：\n"+nz($("rOther").value)+"\n"
   +"◆SV相談：\n"+nz($("rSV").value)+"\n\n"
   +"完成した日報の本文だけを出力してください（前置き・説明・コードブロック記号は不要）。";
 }
@@ -640,7 +717,7 @@ function startApp(){
     applyFromSelect("theme"); applyFromSelect("g1"); applyFromSelect("g2"); applyFromSelect("g3"); }
   if(!$("salesUrl").value) $("salesUrl").value=SHEET_DEFAULTS.sales;
   if(!$("shiftUrl").value) $("shiftUrl").value=SHEET_DEFAULTS.shift;
-  renderWorkChips();
+  renderWorkChips(); renderStaff();
   setDate(0); // 起動時は常に当日（今日）に
   wire(); renderTheme(); sync(); // sync()でテーマ・目標を日報へ引き継ぎ＋プレビュー
 }
