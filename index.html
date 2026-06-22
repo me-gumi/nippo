@@ -215,7 +215,8 @@
       </div>
       <div class="hint">スマレジ：目標=予算 / 実績=純売上の大きい数字 / 名=取引数</div>
       <label style="margin-top:12px">考察（箇条書きでOK）</label>
-      <textarea id="rConsider" placeholder="箇条書きで（改行でOK）&#10;例）&#10;・天気よく国内のお客様多め&#10;・海外単価高め&#10;・リピーターさん多かった"></textarea>
+      <textarea id="rConsider"></textarea>
+      <div class="presetbar"><button class="btn ghost mini" id="plusConsider" type="button">＋ ・を追加</button></div>
     </div>
 
     <div class="card">
@@ -224,13 +225,16 @@
       <input type="text" id="rTheme" placeholder="朝のテーマが自動で入ります">
 
       <div class="goalrow"><span class="badge">1</span><span class="goallabel" id="gl1"></span></div>
-      <textarea id="r1" placeholder="①についての箇条書き（改行でOK）"></textarea>
+      <textarea id="r1"></textarea>
+      <div class="presetbar"><button class="btn ghost mini" id="plus1" type="button">＋ ・を追加</button></div>
 
       <div class="goalrow"><span class="badge">2</span><span class="goallabel" id="gl2"></span></div>
-      <textarea id="r2" placeholder="②についての箇条書き"></textarea>
+      <textarea id="r2"></textarea>
+      <div class="presetbar"><button class="btn ghost mini" id="plus2" type="button">＋ ・を追加</button></div>
 
       <div class="goalrow"><span class="badge">3</span><span class="goallabel" id="gl3"></span></div>
-      <textarea id="r3" placeholder="③についての箇条書き"></textarea>
+      <textarea id="r3"></textarea>
+      <div class="presetbar"><button class="btn ghost mini" id="plus3" type="button">＋ ・を追加</button></div>
 
       <label style="margin-top:14px">スタッフ（一人ずつ・名前は編集／追加／削除できます）</label>
       <div id="staffItems"></div>
@@ -312,12 +316,23 @@ function renderStaff(){
     const del=document.createElement("button"); del.type="button"; del.className="btn danger mini sdel"; del.textContent="🗑";
     del.onclick=()=>{ staff.splice(i,1); renderStaff(); renderReport(); save(); };
     head.appendChild(name); head.appendChild(del);
-    const ta=document.createElement("textarea"); ta.value=m.bullets||""; ta.placeholder="この人についての箇条書き（改行でOK）"; ta.style.minHeight="56px";
+    const ta=document.createElement("textarea"); ta.value=m.bullets||""; ta.placeholder="この人についての箇条書き"; ta.style.minHeight="56px";
     ta.oninput=()=>{ staff[i].bullets=ta.value; renderReport(); save(); };
-    d.appendChild(head); d.appendChild(ta); wrap.appendChild(d);
+    const plus=document.createElement("button"); plus.type="button"; plus.className="btn ghost mini"; plus.textContent="＋ ・を追加";
+    const pbar=document.createElement("div"); pbar.className="presetbar"; pbar.appendChild(plus);
+    d.appendChild(head); d.appendChild(ta); d.appendChild(pbar); wrap.appendChild(d);
+    bulletify(ta,plus);
   });
 }
-function addStaff(name){ staff.push({name:name||"",bullets:""}); renderStaff(); renderReport(); save(); }
+function addStaff(name){ staff.push({name:name||"",bullets:BULLET_DEFAULT}); renderStaff(); renderReport(); save(); }
+// 箇条書き補助：最初から「・」を表示／空の「・」は出力しない
+const BULLET_DEFAULT="・\n・\n・";
+function cleanBullets(text){ return (text||"").split("\n").map(l=>l.replace(/^[・･]\s*/,"").trim()).filter(Boolean).map(l=>"・"+l).join("\n"); }
+function bulletify(ta,plus){
+  if(!ta||ta.dataset.bullet) return; ta.dataset.bullet="1";
+  ta.addEventListener("keydown",e=>{ if(e.key==="Enter"&&!e.shiftKey){ e.preventDefault(); const s=ta.selectionStart,en=ta.selectionEnd,v=ta.value; ta.value=v.slice(0,s)+"\n・"+v.slice(en); ta.selectionStart=ta.selectionEnd=s+2; ta.dispatchEvent(new Event('input')); } });
+  if(plus) plus.onclick=()=>{ ta.value=ta.value.replace(/\s*$/,"")+"\n・"; ta.dispatchEvent(new Event('input')); ta.focus(); ta.selectionStart=ta.selectionEnd=ta.value.length; };
+}
 
 // ===== プリセット保存/読込 =====
 function loadPresets(){
@@ -405,14 +420,14 @@ function buildReport(){
   s+="\n2【今日の売上目標と実績とその考察】\n";
   s+="目標："+yen($("rTarget").value)+"円\n";
   s+="実績："+yen($("rActual").value)+"円（"+($("rGuests").value||"")+"名）\n";
-  if($("rConsider").value.trim()) s+="\n"+$("rConsider").value.trim()+"\n";
+  const con=cleanBullets($("rConsider").value); if(con) s+="\n"+con+"\n";
   s+="\n3【気づき】（スタッフの状況、その他の報告）\n";
   if($("rTheme").value.trim()) s+="テーマ「"+$("rTheme").value.trim()+"」\n";
-  const gb=(badge,goal,bul)=>{ goal=(goal||"").trim(); bul=(bul||"").trim(); let t=""; if(goal||bul){ t+=badge+goal+"\n"; if(bul) t+=bul+"\n"; } return t; };
+  const gb=(badge,goal,bul)=>{ goal=(goal||"").trim(); bul=cleanBullets(bul); let t=""; if(goal||bul){ t+=badge+goal+"\n"; if(bul) t+=bul+"\n"; } return t; };
   s+=gb("①",$("g1").value,$("r1").value);
   s+=gb("②",$("g2").value,$("r2").value);
   s+=gb("③",$("g3").value,$("r3").value);
-  staff.forEach(m=>{ const n=(m.name||"").trim(), b=(m.bullets||"").trim(); if(n||b){ s+="\n"+n+"\n"; if(b) s+=b+"\n"; } });
+  staff.forEach(m=>{ const n=(m.name||"").trim(), b=cleanBullets(m.bullets); if(n||b){ s+="\n"+n+"\n"; if(b) s+=b+"\n"; } });
   if($("rOther").value.trim()) s+="\n"+$("rOther").value.trim()+"\n";
   s+="\n4【SVに相談♪】";
   if($("rSV").value.trim()) s+="\n"+$("rSV").value.trim();
@@ -455,6 +470,7 @@ $("resetBtn").onclick=()=>{
     applyFromSelect("theme"); applyFromSelect("g1"); applyFromSelect("g2"); applyFromSelect("g3"); sync();
   }else{
     ["rTarget","rActual","rGuests","rConsider","rTheme","r1","r2","r3","rOther","rSV","genReport"].forEach(id=>{ $(id).value=""; delete $(id).dataset.touched; });
+    ["rConsider","r1","r2","r3"].forEach(id=>$(id).value=BULLET_DEFAULT);
     staff=[]; renderStaff();
     workSet=new Set(DEFAULT_WORKS); extraWorks=[]; renderWorkChips(); setDate(0); sync();
   }
@@ -516,6 +532,7 @@ function wire(){
   ["theme","g1","g2","g3","sales","memo"].forEach(id=>$(id).oninput=sync);
   ["rdate","rTarget","rActual","rGuests","rConsider","rTheme","r1","r2","r3","rOther","rSV","genReport"].forEach(id=>$(id).oninput=()=>{ renderReport(); save(); });
   $("addStaff").onclick=()=>addStaff("");
+  bulletify($("rConsider"),$("plusConsider")); bulletify($("r1"),$("plus1")); bulletify($("r2"),$("plus2")); bulletify($("r3"),$("plus3"));
   $("genBtn").onclick=generateReport;
   $("genClear").onclick=()=>{ $("genReport").value=""; renderReport(); save(); $("genState").textContent="完成文をクリアしました（箇条書き表示に戻りました）"; };
   $("geminiKey").oninput=save;
@@ -595,7 +612,7 @@ async function connectReport(){
       msg.push("数字");
     }
     if(members&&members.length){
-      members.forEach(nm=>{ if(!staff.some(s=>(s.name||"").trim()===nm)) staff.push({name:nm,bullets:""}); });
+      members.forEach(nm=>{ if(!staff.some(s=>(s.name||"").trim()===nm)) staff.push({name:nm,bullets:BULLET_DEFAULT}); });
       renderStaff();
       msg.push("出勤メンバー("+members.join("・")+")");
     }
@@ -656,7 +673,7 @@ function buildPrompt(){
   const tgt=yen($("rTarget").value), act=yen($("rActual").value), g=$("rGuests").value||"";
   const theme=$("rTheme").value.trim(), g1=$("g1").value.trim(), g2=$("g2").value.trim(), g3=$("g3").value.trim();
   const nz=v=>{ v=(v||"").trim(); return v||"（なし）"; };
-  const staffText=staff.filter(m=>(m.name||"").trim()).map(m=>(m.name||"").trim()+"：\n"+((m.bullets||"").trim()||"（メモなし）")).join("\n\n")||"（なし）";
+  const staffText=staff.filter(m=>(m.name||"").trim()).map(m=>(m.name||"").trim()+"：\n"+(cleanBullets(m.bullets)||"（メモなし）")).join("\n\n")||"（なし）";
   return "あなたは雑貨店の店長「やえ」として、その日の日報を書きます。【お手本】の口調・粒度・温度感を必ずまねて、【箇条書きメモ】を自然な文章に書き起こしてください。\n\n"
   +"【文体の特徴】\n"
   +"・ていねいな「です・ます」調。謙虚でやわらかい言い回し。\n"
@@ -677,10 +694,10 @@ function buildPrompt(){
   +"3【気づき】（スタッフの状況、その他の報告）\nテーマ「"+theme+"」\n①"+g1+"\n（ここに①の文章）\n②"+g2+"\n（ここに②の文章）\n③"+g3+"\n（ここに③の文章）\n\n（スタッフを一人ずつ、名前を見出しにしてその下に文章。「その他」のメモがあればスタッフの後に。なければスタッフのコメントで締める）\n\n"
   +"4【SVに相談♪】\n（あれば内容、なければ見出しのみで一言）\n\n"
   +"【箇条書きメモ】\n"
-  +"◆考察：\n"+nz($("rConsider").value)+"\n"
-  +"◆①について（"+g1+"）：\n"+nz($("r1").value)+"\n"
-  +"◆②について（"+g2+"）：\n"+nz($("r2").value)+"\n"
-  +"◆③について（"+g3+"）：\n"+nz($("r3").value)+"\n"
+  +"◆考察：\n"+nz(cleanBullets($("rConsider").value))+"\n"
+  +"◆①について（"+g1+"）：\n"+nz(cleanBullets($("r1").value))+"\n"
+  +"◆②について（"+g2+"）：\n"+nz(cleanBullets($("r2").value))+"\n"
+  +"◆③について（"+g3+"）：\n"+nz(cleanBullets($("r3").value))+"\n"
   +"◆スタッフ（一人ずつ）：\n"+staffText+"\n"
   +"◆その他：\n"+nz($("rOther").value)+"\n"
   +"◆SV相談：\n"+nz($("rSV").value)+"\n\n"
@@ -717,6 +734,7 @@ function startApp(){
     applyFromSelect("theme"); applyFromSelect("g1"); applyFromSelect("g2"); applyFromSelect("g3"); }
   if(!$("salesUrl").value) $("salesUrl").value=SHEET_DEFAULTS.sales;
   if(!$("shiftUrl").value) $("shiftUrl").value=SHEET_DEFAULTS.shift;
+  ["rConsider","r1","r2","r3"].forEach(id=>{ if(!$(id).value.trim()) $(id).value=BULLET_DEFAULT; });
   renderWorkChips(); renderStaff();
   setDate(0); // 起動時は常に当日（今日）に
   wire(); renderTheme(); sync(); // sync()でテーマ・目標を日報へ引き継ぎ＋プレビュー
