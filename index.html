@@ -590,6 +590,10 @@ function buildPrompt(){
   +"・やわらかい推量（「〜かなと思いました」「〜だろうなと感じました」）。\n"
   +"・前向きに締める（「引き続き見ていきます」「〜できるようにしていきます」）。\n"
   +"・大げさにせず事実ベースで、でも温かく。箇条書きの内容以外の事実は作らない。\n\n"
+  +"【名前の表記（厳守）】\n"
+  +"・スタッフの名前は、与えられた表記を一字一句そのまま使う。敬称（さん／ちゃん 等）を勝手に足したり外したりしない。\n"
+  +"・正しい表記の例：パーカー（×パーカーさん）／サブロー（×サブローさん）／ちゃまさん／おむちゃんさん／たきちゃん。\n"
+  +"・本文中で名前を出すときも必ずこの表記に統一する。\n\n"
   +"【出力フォーマット】（この見出し・形を厳密に守る。目標/実績/客数・①②③の目標文・テーマはそのまま使う。箇条書きが（なし）の項目は無理に書かず、簡潔にするか省略してよい）\n"
   +"お疲れ様です。本日の日報をお送りいたします。\nご確認よろしくお願いいたします。\n\n"
   +date+"\n1【今日の作業報告】\n"+works+"\n\n"
@@ -605,6 +609,11 @@ function buildPrompt(){
   +"◆SV相談：\n"+nz($("rSV").value)+"\n\n"
   +"完成した日報の本文だけを出力してください（前置き・説明・コードブロック記号は不要）。";
 }
+function fixNames(text){
+  // 名前に勝手に付いた余分な「さん」を除去（パーカーさん→パーカー / サブローさん→サブロー / たきちゃんさん→たきちゃん / ちゃまさんさん→ちゃまさん 等）
+  Object.values(NAMEMAP).forEach(n=>{ text=text.split(n+"さん").join(n); });
+  return text;
+}
 async function generateReport(){
   const key=$("geminiKey").value.trim();
   if(!key){ toast("⚙設定でGemini APIキーを入れてください"); $("settingsModal").classList.add("show"); return; }
@@ -616,7 +625,7 @@ async function generateReport(){
     if(!r.ok){ const e=await r.text(); throw new Error(r.status+" "+e.slice(0,140)); }
     const data=await r.json();
     let text=data&&data.candidates&&data.candidates[0]&&data.candidates[0].content&&data.candidates[0].content.parts&&data.candidates[0].content.parts[0].text;
-    if(text){ text=text.replace(/^```[a-zA-Z]*\n?/,"").replace(/\n?```\s*$/,"").trim(); $("genReport").value=text; renderReport(); save(); $("genState").textContent="✓ 文章にしました（下の枠で手直しできます）"; toast("文章にしました"); }
+    if(text){ text=text.replace(/^```[a-zA-Z]*\n?/,"").replace(/\n?```\s*$/,"").trim(); text=fixNames(text); $("genReport").value=text; renderReport(); save(); $("genState").textContent="✓ 文章にしました（下の枠で手直しできます）"; toast("文章にしました"); }
     else{ $("genState").textContent="生成結果が空でした（もう一度お試しください）"; toast("生成できませんでした"); }
   }catch(e){ $("genState").textContent="✗ 失敗："+String((e&&e.message)||e); toast("生成に失敗しました（キー・通信をご確認ください）"); }
   finally{ b.disabled=false; b.textContent=o; }
