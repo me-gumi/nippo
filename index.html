@@ -266,8 +266,8 @@ const DEFAULTS={
     "フロアでフライヤー配布済み100%！ステッカーをお持ちのお客様に気づいたら、すぐにお渡ししよう。アプリ{n}名以上獲得！",
   ],
 };
-const WORKS=["開店作業","接客、レジ","不足出し","発注作業","閉店作業","設置作業","撤去","ステップアップ","作業"];
-const DEFAULT_WORKS=["開店作業","接客、レジ","閉店作業","発注作業"];
+const WORKS=["開店作業","接客、レジ","不足出し","発注作業","閉店作業","設置作業","撤去","ステップアップ","作業","店長会","面談","勉強会"];
+const DEFAULT_WORKS=["開店作業","接客、レジ","閉店作業"];
 const WD=["日","月","火","水","木","金","土"];
 const $=id=>document.getElementById(id);
 const LS="shimokita_app_v2";
@@ -432,7 +432,7 @@ function load(){
   const set=(id,v)=>{ if(v!==undefined&&v!==null) $(id).value=v; };
   ["themeSel","theme","g1Sel","g1","g2Sel","g2","g3Sel","g3","appNum","sales","memo",
    "rdate","rTarget","rActual","rGuests","rConsider","rTheme","r1","r2","r3","rStaff","rSV","salesUrl","shiftUrl"].forEach(k=>set(k,d[k]));
-  if(d.works) workSet=new Set(d.works); if(d.extraWorks) extraWorks=d.extraWorks;
+  if(d.extraWorks) extraWorks=d.extraWorks; // 作業の選択は毎回はじめからDEFAULT_WORKS（記憶しない）
   (d.touched||[]).forEach(id=>$(id).dataset.touched="1");
   return true;
 }
@@ -560,7 +560,7 @@ function startApp(){
   if(!$("salesUrl").value) $("salesUrl").value=SHEET_DEFAULTS.sales;
   if(!$("shiftUrl").value) $("shiftUrl").value=SHEET_DEFAULTS.shift;
   renderWorkChips();
-  if(!$("rdate").value) setDate(0);
+  setDate(0); // 起動時は常に当日（今日）に
   wire(); renderTheme(); renderReport();
 }
 
