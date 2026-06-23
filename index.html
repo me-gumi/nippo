@@ -291,6 +291,16 @@
       <button class="btn ghost mini" id="genClear" type="button" style="margin-top:8px">完成文をクリア（箇条書き表示に戻す）</button>
     </div>
 
+    <!-- 作業デー：文章にする（任意） -->
+    <div class="card sagyo-only">
+      <h2><span class="num">🤖</span>文章を作成する（任意）</h2>
+      <button class="btn" id="wGenBtn" type="button" style="width:100%">🤖 作業報告を文章にする</button>
+      <div class="hint" id="wGenState" style="margin-top:8px">押すと作業報告がやえさんの文章になります。箇条書きのままでよければ押さなくてOKです（⚙設定でGemini APIキーが必要）。</div>
+      <label style="margin-top:10px">完成文（編集できます）</label>
+      <textarea id="wGenReport" style="min-height:220px" placeholder="「文章にする」を押すと、ここに文章が入ります（手直しOK）。&#10;ここに文章があるときは、下のオレンジ枠もこの文章になります。"></textarea>
+      <button class="btn ghost mini" id="wGenClear" type="button" style="margin-top:8px">完成文をクリア（箇条書き表示に戻す）</button>
+    </div>
+
     <div class="card">
       <h2><span class="num">📋</span>プレビュー</h2>
       <div class="previewbox" id="reportPrev"></div>
@@ -344,7 +354,7 @@ let staff=[]; // [{name,bullets}]
 let lastWorkedOn=null; // 最後に編集した暦日（別日になったら当日分をクリア）
 let contentDate=null;  // 今表示中の入力がどの日付の分か
 function clearDay(){
-  ["rTarget","rActual","rGuests","rOther","rSV","genReport"].forEach(id=>{ $(id).value=""; delete $(id).dataset.touched; });
+  ["rTarget","rActual","rGuests","rOther","rSV","genReport","wGenReport"].forEach(id=>{ $(id).value=""; delete $(id).dataset.touched; });
   ["rConsider","r1","r2","r3"].forEach(id=>$(id).value=BULLET_DEFAULT);
   $("wReport").value=BULLET_DEFAULT; $("wReason").value=WORK_REASON_DEFAULT;
   workSet=defaultWorkSet(); extraWorks=[]; renderWorkChips(); // 作業チップもその日の初期選択に戻す（接客=3つ／作業=作業のみ）
@@ -486,6 +496,8 @@ function buildReport(){
   return s;
 }
 function buildWorkReport(){
+  const gen=$("wGenReport").value.trim();
+  if(gen) return gen; // AIで清書した完成文があればそれを使う
   let s="お疲れ様です。本日の日報をお送りいたします。\nご確認よろしくお願いいたします。\n\n";
   s+=fmtDate($("rdate").value)+"\n1【今日の作業報告】\n";
   WORKS.concat(extraWorks).filter(w=>workSet.has(w)).forEach(w=>s+="・"+w+"\n");
@@ -523,7 +535,7 @@ function switchDay(t){
 }
 function isoOffset(off){ const d=new Date(); d.setDate(d.getDate()+off); return d.getFullYear()+"-"+pad2(d.getMonth()+1)+"-"+pad2(d.getDate()); }
 function setDate(off){ const iso=isoOffset(off); $("rdate").value=iso; contentDate=iso; renderReport(); save(); }
-function hasDayContent(){ return !!($("genReport").value.trim()||$("rActual").value.trim()||$("rTarget").value.trim()||$("rGuests").value.trim()||cleanBullets($("rConsider").value)||cleanBullets($("r1").value)||cleanBullets($("r2").value)||cleanBullets($("r3").value)||$("rOther").value.trim()||$("rSV").value.trim()||cleanWorkReport($("wReport").value)||staff.some(s=>cleanBullets(s.bullets))); }
+function hasDayContent(){ return !!($("genReport").value.trim()||$("wGenReport").value.trim()||$("rActual").value.trim()||$("rTarget").value.trim()||$("rGuests").value.trim()||cleanBullets($("rConsider").value)||cleanBullets($("r1").value)||cleanBullets($("r2").value)||cleanBullets($("r3").value)||$("rOther").value.trim()||$("rSV").value.trim()||cleanWorkReport($("wReport").value)||staff.some(s=>cleanBullets(s.bullets))); }
 function switchDate(newIso){
   if(!newIso) return;
   if(newIso===contentDate){ $("rdate").value=newIso; renderReport(); save(); return; }
@@ -548,7 +560,7 @@ $("resetBtn").onclick=()=>{
     $("appNum").value=15; $("sales").value=""; $("memo").value="";
     applyFromSelect("theme"); applyFromSelect("g1"); applyFromSelect("g2"); applyFromSelect("g3"); sync();
   }else{
-    ["rTarget","rActual","rGuests","rConsider","rTheme","r1","r2","r3","rOther","rSV","genReport"].forEach(id=>{ $(id).value=""; delete $(id).dataset.touched; });
+    ["rTarget","rActual","rGuests","rConsider","rTheme","r1","r2","r3","rOther","rSV","genReport","wGenReport"].forEach(id=>{ $(id).value=""; delete $(id).dataset.touched; });
     ["rConsider","r1","r2","r3"].forEach(id=>$(id).value=BULLET_DEFAULT);
     $("wReport").value=BULLET_DEFAULT; $("wReason").value=WORK_REASON_DEFAULT;
     staff=[]; renderStaff();
@@ -568,7 +580,7 @@ function save(){
     rOther:$("rOther").value,staff:staff,rSV:$("rSV").value,works:[...workSet],extraWorks,
     dayType,wReason:$("wReason").value,wReport:$("wReport").value,
     salesUrl:$("salesUrl").value,shiftUrl:$("shiftUrl").value,
-    genReport:$("genReport").value,geminiKey:$("geminiKey").value,workedOn:todayIso(),
+    genReport:$("genReport").value,wGenReport:$("wGenReport").value,geminiKey:$("geminiKey").value,workedOn:todayIso(),
     touched:["rTheme","rTarget"].filter(id=>$(id).dataset.touched)
   };
   try{ localStorage.setItem(LS,JSON.stringify(d)); }catch(e){}
@@ -577,7 +589,7 @@ function load(){
   let d; try{ d=JSON.parse(localStorage.getItem(LS)); }catch(e){} if(!d) return false;
   const set=(id,v)=>{ if(v!==undefined&&v!==null) $(id).value=v; };
   ["themeSel","theme","g1Sel","g1","g2Sel","g2","g3Sel","g3","appNum","sales","memo",
-   "rdate","rTarget","rActual","rGuests","rConsider","rTheme","r1","r2","r3","rOther","rSV","salesUrl","shiftUrl","genReport","geminiKey","wReason","wReport"].forEach(k=>set(k,d[k]));
+   "rdate","rTarget","rActual","rGuests","rConsider","rTheme","r1","r2","r3","rOther","rSV","salesUrl","shiftUrl","genReport","geminiKey","wReason","wReport","wGenReport"].forEach(k=>set(k,d[k]));
   if(d.dayType) dayType=d.dayType;
   if(Array.isArray(d.staff)) staff=d.staff;
   lastWorkedOn=d.workedOn||null;
@@ -614,12 +626,14 @@ function wire(){
   };
   // テキスト入力
   ["theme","g1","g2","g3","sales","memo"].forEach(id=>$(id).oninput=sync);
-  ["rTarget","rActual","rGuests","rConsider","rTheme","r1","r2","r3","rOther","rSV","genReport","wReason","wReport"].forEach(id=>$(id).oninput=()=>{ renderReport(); save(); });
+  ["rTarget","rActual","rGuests","rConsider","rTheme","r1","r2","r3","rOther","rSV","genReport","wReason","wReport","wGenReport"].forEach(id=>$(id).oninput=()=>{ renderReport(); save(); });
   $("rdate").onchange=()=>switchDate($("rdate").value);
   $("addStaff").onclick=()=>addStaff("");
   bulletify($("rConsider"),$("plusConsider")); bulletify($("r1"),$("plus1")); bulletify($("r2"),$("plus2")); bulletify($("r3"),$("plus3")); bulletify($("wReport"),$("plusWReport"));
   $("genBtn").onclick=generateReport;
   $("genClear").onclick=()=>{ $("genReport").value=""; renderReport(); save(); $("genState").textContent="完成文をクリアしました（箇条書き表示に戻りました）"; };
+  $("wGenBtn").onclick=generateWorkReport;
+  $("wGenClear").onclick=()=>{ $("wGenReport").value=""; renderReport(); save(); $("wGenState").textContent="完成文をクリアしました（箇条書き表示に戻りました）"; };
   $("geminiKey").oninput=save;
   ["rTheme","r1","r2","r3","rTarget"].forEach(id=>$(id).addEventListener("input",()=>{ $(id).dataset.touched="1"; }));
   // 作業追加
@@ -806,6 +820,31 @@ function buildPrompt(){
   +"◆SV相談：\n"+nz($("rSV").value)+"\n\n"
   +"完成した日報の本文だけを出力してください（前置き・説明・コードブロック記号は不要）。";
 }
+function buildWorkPrompt(){
+  const date=fmtDate($("rdate").value);
+  const works=WORKS.concat(extraWorks).filter(w=>workSet.has(w)).map(w=>"・"+w).join("\n");
+  const reason=$("wReason").value.trim()||WORK_REASON_DEFAULT;
+  const report=cleanWorkReport($("wReport").value)||"（メモなし）";
+  const sv=$("rSV").value.trim();
+  return "あなたは雑貨店の店長「やえ」として、接客のない『作業デー』の日報を書きます。お店に立たず、事務作業や打ち合わせなどをした日の報告です。【作業報告メモ】を、やえさんのていねいで温かい文章に整えてください。\n\n"
+  +"【文体・整え方】\n"
+  +"・ていねいな「です・ます」調。謙虚でやわらかい言い回し。\n"
+  +"・メモが短い項目は無理に文章へふくらませず、箇条書き（・）のまま自然でていねいな言い回しに整えるだけでよい。\n"
+  +"・メモが具体的な項目は、状況や意図が伝わるよう自然な文章にしてよい。1〜2文で十分。\n"
+  +"・行頭に「・」がない補足の行は、直前の項目の補足として自然につなげる（箇条書きにし直さない）。\n"
+  +"・「良い・良く・良かった・良さ」は「よい・よく・よかった・よさ」、「出来る・出来た・出来ない」は「できる・できた・できない」とひらがな。\n"
+  +"・「〜させていただきました」は避け「〜しました」と簡潔に。二重かぎかっこ『』は使わず「」を使う。\n"
+  +"・メモにない出来事・数字・気持ちは作らない。書かれていることだけを整える。\n\n"
+  +"【出力フォーマット】（この見出し・形を厳密に守る。1・2・4はそのまま使い、3の「作業報告」の中身だけを整える）\n"
+  +"お疲れ様です。本日の日報をお送りいたします。\nご確認よろしくお願いいたします。\n\n"
+  +date+"\n1【今日の作業報告】\n"+works+"\n\n"
+  +"2【今日の売上目標と実績とその考察】\n目標：円\n実績：円（名）\n\n"+reason+"\n\n"
+  +"3【気づき】（スタッフの状況、その他の報告）\n\n作業報告\n（ここに作業報告メモを整えた内容）\n\n"
+  +"4【SVに相談♪】\n"+(sv?"（SV相談メモの内容だけを書く）":"（メモがないので見出しだけにして、その後には一切何も書かない＝空欄）")+"\n\n"
+  +"【作業報告メモ】\n"+report+"\n"
+  +(sv?"\n【SV相談メモ】\n"+sv+"\n":"")
+  +"\n完成した日報の本文だけを出力してください（前置き・説明・コードブロック記号は不要）。";
+}
 function fixNames(text){
   // 名前に勝手に付いた余分な「さん」を除去（パーカーさん→パーカー / サブローさん→サブロー / たきちゃんさん→たきちゃん / ちゃまさんさん→ちゃまさん 等）
   Object.values(NAMEMAP).forEach(n=>{ text=text.split(n+"さん").join(n); });
@@ -852,6 +891,39 @@ async function generateReport(){
       if(i<models.length-1) await sleep(1800);
     }
     $("genState").textContent="✗ 失敗："+lastMsg+"／少し待って、もう一度「文章にする」を押してください";
+    toast("混雑などで作成できませんでした。少し待って再度お試しください");
+  } finally { b.disabled=false; b.textContent=o; }
+}
+// 作業デー用：作業報告を文章にする（接客デーと同じ仕組み・別フィールド wGenReport へ）
+async function generateWorkReport(){
+  const key=$("geminiKey").value.trim();
+  if(!key){ toast("⚙設定でGemini APIキーを入れてください"); $("settingsModal").classList.add("show"); return; }
+  const b=$("wGenBtn"); const o=b.textContent; b.disabled=true; b.textContent="作成中…";
+  const body={contents:[{parts:[{text:buildWorkPrompt()}]}],generationConfig:{temperature:0.7}};
+  const models=["gemini-2.5-flash","gemini-flash-latest","gemini-2.5-flash","gemini-flash-latest","gemini-2.5-flash"];
+  const sleep=ms=>new Promise(r=>setTimeout(r,ms));
+  let lastMsg="";
+  try{
+    for(let i=0;i<models.length;i++){
+      $("wGenState").textContent = i===0 ? "作成中…（数秒〜十数秒お待ちください）" : "混雑のため再試行中…（"+i+"回目）";
+      try{
+        const url="https://generativelanguage.googleapis.com/v1beta/models/"+models[i]+":generateContent?key="+encodeURIComponent(key);
+        const r=await fetch(url,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(body)});
+        if(r.ok){
+          const data=await r.json();
+          let text=data&&data.candidates&&data.candidates[0]&&data.candidates[0].content&&data.candidates[0].content.parts&&data.candidates[0].content.parts[0].text;
+          if(text){ text=polishStyle(fixNames(text.replace(/^```[a-zA-Z]*\n?/,"").replace(/\n?```\s*$/,"").trim()));
+            if(!$("rSV").value.trim()) text=text.replace(/(【SVに相談[^】]*】)[\s\S]*$/,"$1"); // SVメモが無ければ見出しのみ
+            $("wGenReport").value=text; renderReport(); save(); $("wGenState").textContent="✓ 文章にしました（下の枠で手直しできます）"; toast("文章にしました"); return; }
+          lastMsg="生成結果が空";
+        } else {
+          const e=await r.text(); lastMsg=r.status+" "+e.slice(0,80);
+          if(![429,500,503].includes(r.status)) break;
+        }
+      }catch(e){ lastMsg=String((e&&e.message)||e); }
+      if(i<models.length-1) await sleep(1800);
+    }
+    $("wGenState").textContent="✗ 失敗："+lastMsg+"／少し待って、もう一度「文章にする」を押してください";
     toast("混雑などで作成できませんでした。少し待って再度お試しください");
   } finally { b.disabled=false; b.textContent=o; }
 }
