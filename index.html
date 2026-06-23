@@ -50,6 +50,13 @@
   .tab{flex:1;text-align:center;padding:12px;font-weight:700;font-size:15px;color:var(--sub);cursor:pointer}
   .tab.active{background:var(--brand);color:#fff}
   .page{display:none}.page.active{display:block}
+  /* day type toggle (接客デー／作業デー) */
+  .daytabs{display:flex;gap:8px;margin-bottom:14px}
+  .daytab{flex:1;text-align:center;padding:11px;font-weight:700;font-size:14px;color:var(--sub);
+    cursor:pointer;background:#fff;border:1px solid var(--line);border-radius:10px;user-select:none}
+  .daytab.active{background:var(--accent);color:var(--brand-d);border-color:var(--brand)}
+  #page-report.day-sagyo .sekkyaku-only{display:none}
+  #page-report.day-sekkyaku .sagyo-only{display:none}
   /* chips */
   .chip-wrap{display:flex;flex-wrap:wrap;gap:8px}
   .chip{padding:8px 12px;border:1px solid var(--line);border-radius:999px;font-size:14px;background:#fff;cursor:pointer;user-select:none}
@@ -194,7 +201,11 @@
   </div>
 
   <!-- ============ 日報 ============ -->
-  <div class="page" id="page-report">
+  <div class="page day-sekkyaku" id="page-report">
+    <div class="daytabs">
+      <div class="daytab active" data-day="sekkyaku" onclick="switchDay('sekkyaku')">🙂 接客デー</div>
+      <div class="daytab" data-day="sagyo" onclick="switchDay('sagyo')">💻 作業デー</div>
+    </div>
     <div class="card">
       <h2><span class="num">1</span>今日の作業報告</h2>
       <div class="row" style="margin-bottom:8px">
@@ -202,15 +213,16 @@
         <div style="flex:0 0 auto"><button class="btn ghost mini" type="button" onclick="switchDate(isoOffset(-1))">昨日</button></div>
         <div><input type="date" id="rdate"></div>
       </div>
-      <div class="presetbar" style="margin-bottom:10px">
+      <div class="presetbar sekkyaku-only" style="margin-bottom:10px">
         <button class="btn ghost mini" id="connReport" type="button">🔗 接続して数字・出勤メンバーを取得</button>
       </div>
-      <div class="hint" style="margin-bottom:8px">この日の「目標・実績・客数」と「出勤メンバー（やえ以外）」を取得します</div>
+      <div class="hint sekkyaku-only" style="margin-bottom:8px">この日の「目標・実績・客数」と「出勤メンバー（やえ以外）」を取得します</div>
+      <div class="hint sagyo-only" style="margin-bottom:8px">作業デーは「わくわくテーマ」なしで、作業報告だけをまとめます。</div>
       <div class="chip-wrap" id="workChips"></div>
       <input type="text" id="workAdd" class="mt6" placeholder="その他を追加してEnter（例：撤去）">
     </div>
 
-    <div class="card">
+    <div class="card sekkyaku-only">
       <h2><span class="num">2</span>売上目標と実績とその考察</h2>
       <div class="row">
         <div><label>目標（円）</label><input type="number" id="rTarget" inputmode="numeric"></div>
@@ -223,7 +235,15 @@
       <div class="presetbar"><button class="btn ghost mini" id="plusConsider" type="button">＋ ・を追加</button></div>
     </div>
 
-    <div class="card">
+    <!-- 作業デー：売上・実績（数字なし） -->
+    <div class="card sagyo-only">
+      <h2><span class="num">2</span>売上目標と実績とその考察</h2>
+      <div class="hint">作業デーは目標・実績は空欄（「目標：円／実績：円（名）」）で出力されます。下の一文がその下に入ります。</div>
+      <label style="margin-top:10px">記載なしの一言（編集できます）</label>
+      <textarea id="wReason">一日事務所で作業の時間をいただいたので記載なしです。</textarea>
+    </div>
+
+    <div class="card sekkyaku-only">
       <h2><span class="num">3</span>気づき（箇条書きでメモ → 下で文章に）</h2>
       <label>テーマ</label>
       <input type="text" id="rTheme" placeholder="朝のテーマが自動で入ります">
@@ -248,12 +268,21 @@
       <textarea id="rOther" style="min-height:56px" placeholder="スタッフ以外の報告があれば箇条書きで（なければ空欄でOK）"></textarea>
     </div>
 
+    <!-- 作業デー：作業報告（気づき欄の中身） -->
+    <div class="card sagyo-only">
+      <h2><span class="num">3</span>気づき（作業報告）</h2>
+      <div class="hint">「3【気づき】」の中に「作業報告」として箇条書きで入ります。テーマ①②③・スタッフ欄はありません。</div>
+      <label style="margin-top:10px">作業報告（箇条書き）</label>
+      <textarea id="wReport" style="min-height:120px"></textarea>
+      <div class="presetbar"><button class="btn ghost mini" id="plusWReport" type="button">＋ ・を追加</button></div>
+    </div>
+
     <div class="card">
       <h2><span class="num">4</span>SVに相談♪</h2>
       <textarea id="rSV" placeholder="相談事項があれば。なければ空欄でOK"></textarea>
     </div>
 
-    <div class="card">
+    <div class="card sekkyaku-only">
       <h2><span class="num">🤖</span>箇条書きを文章にする</h2>
       <button class="btn" id="genBtn" type="button" style="width:100%">🤖 箇条書きを文章にする</button>
       <div class="hint" id="genState" style="margin-top:8px">⚙設定でGemini APIキー（無料）を入れると使えます。生成後はこの下で手直しできます。</div>
@@ -307,7 +336,9 @@ const $=id=>document.getElementById(id);
 const LS="shimokita_app_v3";
 const PLS="shimokita_presets_v2";
 
+const WORK_REASON_DEFAULT="一日事務所で作業の時間をいただいたので記載なしです。";
 let presets=loadPresets();
+let dayType="sekkyaku"; // 接客デー / 作業デー
 let workSet=new Set(DEFAULT_WORKS), extraWorks=[];
 let staff=[]; // [{name,bullets}]
 let lastWorkedOn=null; // 最後に編集した暦日（別日になったら当日分をクリア）
@@ -315,7 +346,8 @@ let contentDate=null;  // 今表示中の入力がどの日付の分か
 function clearDay(){
   ["rTarget","rActual","rGuests","rOther","rSV","genReport"].forEach(id=>{ $(id).value=""; delete $(id).dataset.touched; });
   ["rConsider","r1","r2","r3"].forEach(id=>$(id).value=BULLET_DEFAULT);
-  workSet=new Set(DEFAULT_WORKS); extraWorks=[]; renderWorkChips(); // 作業チップも初期の3つ（開店作業・接客、レジ・閉店作業）に戻す
+  $("wReport").value=BULLET_DEFAULT; $("wReason").value=WORK_REASON_DEFAULT;
+  workSet=defaultWorkSet(); extraWorks=[]; renderWorkChips(); // 作業チップもその日の初期選択に戻す（接客=3つ／作業=作業のみ）
   staff=[]; renderStaff();
 }
 function renderStaff(){
@@ -340,6 +372,8 @@ function addStaff(name){ staff.push({name:name||"",bullets:BULLET_DEFAULT}); ren
 // 箇条書き補助：最初から「・」を表示／空の「・」は出力しない
 const BULLET_DEFAULT="・\n・\n・";
 function cleanBullets(text){ return (text||"").split("\n").map(l=>l.replace(/^[・･]\s*/,"").trim()).filter(Boolean).map(l=>"・"+l).join("\n"); }
+// 作業報告用：行をそのまま活かす（「・」付きは箇条書き／「・」なしは補足行として保持。空行と「・」だけの行は除く）
+function cleanWorkReport(text){ return (text||"").split("\n").map(l=>l.replace(/\s+$/,"")).filter(l=>l.trim()!==""&&l.trim()!=="・"&&l.trim()!=="･").join("\n"); }
 function bulletify(ta,plus){
   if(!ta||ta.dataset.bullet) return; ta.dataset.bullet="1";
   ta.addEventListener("keydown",e=>{ if(e.key==="Enter"&&!e.shiftKey){ e.preventDefault(); const s=ta.selectionStart,en=ta.selectionEnd,v=ta.value; ta.value=v.slice(0,s)+"\n・"+v.slice(en); ta.selectionStart=ta.selectionEnd=s+2; ta.dispatchEvent(new Event('input')); } });
@@ -390,6 +424,8 @@ function delPreset(kind){
 }
 
 // ===== 作業チップ =====
+// 日タイプごとの初期選択（接客デー＝開店作業・接客、レジ・閉店作業／作業デー＝作業 のみ）
+function defaultWorkSet(){ return new Set(dayType==="sagyo"?["作業"]:DEFAULT_WORKS); }
 function renderWorkChips(){
   const wrap=$("workChips"); wrap.innerHTML="";
   WORKS.concat(extraWorks).forEach(w=>{
@@ -449,10 +485,22 @@ function buildReport(){
   if($("rSV").value.trim()) s+="\n"+$("rSV").value.trim();
   return s;
 }
+function buildWorkReport(){
+  let s="お疲れ様です。本日の日報をお送りいたします。\nご確認よろしくお願いいたします。\n\n";
+  s+=fmtDate($("rdate").value)+"\n1【今日の作業報告】\n";
+  WORKS.concat(extraWorks).filter(w=>workSet.has(w)).forEach(w=>s+="・"+w+"\n");
+  s+="\n2【今日の売上目標と実績とその考察】\n目標：円\n実績：円（名）\n";
+  const reason=$("wReason").value.trim(); if(reason) s+="\n"+reason+"\n";
+  s+="\n3【気づき】（スタッフの状況、その他の報告）\n\n作業報告\n";
+  const wr=cleanWorkReport($("wReport").value); if(wr) s+=wr+"\n";
+  s+="\n4【SVに相談♪】";
+  if($("rSV").value.trim()) s+="\n"+$("rSV").value.trim();
+  return s;
+}
 function renderTheme(){ $("themePrev").textContent=buildTheme(); }
 function renderReport(){
   $("gl1").textContent=$("g1").value||""; $("gl2").textContent=$("g2").value||""; $("gl3").textContent=$("g3").value||"";
-  $("reportPrev").textContent=buildReport();
+  $("reportPrev").textContent=(dayType==="sagyo")?buildWorkReport():buildReport();
 }
 
 // ===== タブ =====
@@ -463,9 +511,19 @@ function switchTab(t){
   document.querySelectorAll(".page").forEach(el=>el.classList.remove("active"));
   $("page-"+t).classList.add("active"); window.scrollTo(0,0);
 }
+function switchDay(t){
+  const changed=(dayType!==t);
+  dayType=t;
+  const p=$("page-report");
+  p.classList.toggle("day-sekkyaku",t==="sekkyaku");
+  p.classList.toggle("day-sagyo",t==="sagyo");
+  document.querySelectorAll(".daytab").forEach(el=>el.classList.toggle("active",el.dataset.day===t));
+  if(changed){ workSet=defaultWorkSet(); extraWorks=[]; renderWorkChips(); } // 日タイプを切り替えたら作業チップをその日の初期選択に
+  renderReport(); save();
+}
 function isoOffset(off){ const d=new Date(); d.setDate(d.getDate()+off); return d.getFullYear()+"-"+pad2(d.getMonth()+1)+"-"+pad2(d.getDate()); }
 function setDate(off){ const iso=isoOffset(off); $("rdate").value=iso; contentDate=iso; renderReport(); save(); }
-function hasDayContent(){ return !!($("genReport").value.trim()||$("rActual").value.trim()||$("rTarget").value.trim()||$("rGuests").value.trim()||cleanBullets($("rConsider").value)||cleanBullets($("r1").value)||cleanBullets($("r2").value)||cleanBullets($("r3").value)||$("rOther").value.trim()||$("rSV").value.trim()||staff.some(s=>cleanBullets(s.bullets))); }
+function hasDayContent(){ return !!($("genReport").value.trim()||$("rActual").value.trim()||$("rTarget").value.trim()||$("rGuests").value.trim()||cleanBullets($("rConsider").value)||cleanBullets($("r1").value)||cleanBullets($("r2").value)||cleanBullets($("r3").value)||$("rOther").value.trim()||$("rSV").value.trim()||cleanWorkReport($("wReport").value)||staff.some(s=>cleanBullets(s.bullets))); }
 function switchDate(newIso){
   if(!newIso) return;
   if(newIso===contentDate){ $("rdate").value=newIso; renderReport(); save(); return; }
@@ -478,7 +536,7 @@ function switchDate(newIso){
 let tT;
 function toast(msg){ const t=$("toast"); t.textContent=msg; t.classList.add("show"); clearTimeout(tT); tT=setTimeout(()=>t.classList.remove("show"),1500); }
 $("copyBtn").onclick=async()=>{
-  const txt=(curTab==="theme")?buildTheme():buildReport();
+  const txt=(curTab==="theme")?buildTheme():((dayType==="sagyo")?buildWorkReport():buildReport());
   try{ await navigator.clipboard.writeText(txt); }
   catch(e){ const ta=document.createElement("textarea"); ta.value=txt; ta.style.position="fixed"; ta.style.opacity="0"; document.body.appendChild(ta); ta.focus(); ta.select(); document.execCommand("copy"); document.body.removeChild(ta); }
   toast((curTab==="theme"?"テーマ":"日報")+"をコピーしました！");
@@ -492,8 +550,9 @@ $("resetBtn").onclick=()=>{
   }else{
     ["rTarget","rActual","rGuests","rConsider","rTheme","r1","r2","r3","rOther","rSV","genReport"].forEach(id=>{ $(id).value=""; delete $(id).dataset.touched; });
     ["rConsider","r1","r2","r3"].forEach(id=>$(id).value=BULLET_DEFAULT);
+    $("wReport").value=BULLET_DEFAULT; $("wReason").value=WORK_REASON_DEFAULT;
     staff=[]; renderStaff();
-    workSet=new Set(DEFAULT_WORKS); extraWorks=[]; renderWorkChips(); setDate(0); sync();
+    workSet=defaultWorkSet(); extraWorks=[]; renderWorkChips(); setDate(0); sync();
   }
   save();
 };
@@ -507,6 +566,7 @@ function save(){
     rdate:$("rdate").value,rTarget:$("rTarget").value,rActual:$("rActual").value,rGuests:$("rGuests").value,
     rConsider:$("rConsider").value,rTheme:$("rTheme").value,r1:$("r1").value,r2:$("r2").value,r3:$("r3").value,
     rOther:$("rOther").value,staff:staff,rSV:$("rSV").value,works:[...workSet],extraWorks,
+    dayType,wReason:$("wReason").value,wReport:$("wReport").value,
     salesUrl:$("salesUrl").value,shiftUrl:$("shiftUrl").value,
     genReport:$("genReport").value,geminiKey:$("geminiKey").value,workedOn:todayIso(),
     touched:["rTheme","rTarget"].filter(id=>$(id).dataset.touched)
@@ -517,7 +577,8 @@ function load(){
   let d; try{ d=JSON.parse(localStorage.getItem(LS)); }catch(e){} if(!d) return false;
   const set=(id,v)=>{ if(v!==undefined&&v!==null) $(id).value=v; };
   ["themeSel","theme","g1Sel","g1","g2Sel","g2","g3Sel","g3","appNum","sales","memo",
-   "rdate","rTarget","rActual","rGuests","rConsider","rTheme","r1","r2","r3","rOther","rSV","salesUrl","shiftUrl","genReport","geminiKey"].forEach(k=>set(k,d[k]));
+   "rdate","rTarget","rActual","rGuests","rConsider","rTheme","r1","r2","r3","rOther","rSV","salesUrl","shiftUrl","genReport","geminiKey","wReason","wReport"].forEach(k=>set(k,d[k]));
+  if(d.dayType) dayType=d.dayType;
   if(Array.isArray(d.staff)) staff=d.staff;
   lastWorkedOn=d.workedOn||null;
   if(d.extraWorks) extraWorks=d.extraWorks; // 作業の選択は毎回はじめからDEFAULT_WORKS（記憶しない）
@@ -553,10 +614,10 @@ function wire(){
   };
   // テキスト入力
   ["theme","g1","g2","g3","sales","memo"].forEach(id=>$(id).oninput=sync);
-  ["rTarget","rActual","rGuests","rConsider","rTheme","r1","r2","r3","rOther","rSV","genReport"].forEach(id=>$(id).oninput=()=>{ renderReport(); save(); });
+  ["rTarget","rActual","rGuests","rConsider","rTheme","r1","r2","r3","rOther","rSV","genReport","wReason","wReport"].forEach(id=>$(id).oninput=()=>{ renderReport(); save(); });
   $("rdate").onchange=()=>switchDate($("rdate").value);
   $("addStaff").onclick=()=>addStaff("");
-  bulletify($("rConsider"),$("plusConsider")); bulletify($("r1"),$("plus1")); bulletify($("r2"),$("plus2")); bulletify($("r3"),$("plus3"));
+  bulletify($("rConsider"),$("plusConsider")); bulletify($("r1"),$("plus1")); bulletify($("r2"),$("plus2")); bulletify($("r3"),$("plus3")); bulletify($("wReport"),$("plusWReport"));
   $("genBtn").onclick=generateReport;
   $("genClear").onclick=()=>{ $("genReport").value=""; renderReport(); save(); $("genState").textContent="完成文をクリアしました（箇条書き表示に戻りました）"; };
   $("geminiKey").oninput=save;
@@ -806,9 +867,11 @@ function startApp(){
   if(!$("shiftUrl").value) $("shiftUrl").value=SHEET_DEFAULTS.shift;
   if(restored && lastWorkedOn && lastWorkedOn!==todayIso()) clearDay(); // 別の日に開いたら前日分をクリア
   ["rConsider","r1","r2","r3"].forEach(id=>{ if(!$(id).value.trim()) $(id).value=BULLET_DEFAULT; });
-  renderWorkChips(); renderStaff(); updateAppNumBtns();
+  if(!$("wReport").value.trim()) $("wReport").value=BULLET_DEFAULT;
+  if(!$("wReason").value.trim()) $("wReason").value=WORK_REASON_DEFAULT;
+  workSet=defaultWorkSet(); renderWorkChips(); renderStaff(); updateAppNumBtns();
   setDate(0); // 起動時は常に当日（今日）に
-  wire(); renderTheme(); sync(); // sync()でテーマ・目標を日報へ引き継ぎ＋プレビュー
+  wire(); switchDay(dayType); renderTheme(); sync(); // sync()でテーマ・目標を日報へ引き継ぎ＋プレビュー
 }
 
 // ===== ログイン =====
