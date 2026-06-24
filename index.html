@@ -119,6 +119,9 @@
       <input type="text" id="salesUrl" placeholder="https://docs.google.com/spreadsheets/d/.../edit">
       <label style="margin-top:10px">シフト表のリンク</label>
       <input type="text" id="shiftUrl" placeholder="https://docs.google.com/spreadsheets/d/.../edit">
+      <label style="margin-top:10px">アプリ チェックイン数シートのリンク</label>
+      <input type="text" id="checkinUrl" placeholder="https://docs.google.com/spreadsheets/d/.../edit?gid=...">
+      <div class="hint">下北沢店の「チェックイン数（累計）」を読み取り、今日の最新累計との差で獲得人数を計算します。</div>
       <label style="margin-top:14px">Gemini APIキー（文章作成用・無料）</label>
       <input type="password" id="geminiKey" placeholder="AIza...（端末内のみ保存）">
       <div class="hint">aistudio.google.com/apikey で無料取得（カード不要）。あなたの端末だけに保存され、公開コードには含まれません。</div>
@@ -257,6 +260,18 @@
       <div class="presetbar"><button class="btn ghost mini" id="plus2" type="button">＋ ・を追加</button></div>
 
       <div class="goalrow"><span class="badge">3</span><span class="goallabel" id="gl3"></span></div>
+      <div class="sitem">
+        <div class="hint" style="margin-top:0">📱 アプリ獲得人数の自動計算。前日までの累計は「過去の日報」かシートから自動取得。シートが前日まで未記載のときは、不足日の獲得人数だけ入れれば計算します。結果は③の先頭に「○名でした。／○名で目標達成していません。」と自動で入ります。</div>
+        <div class="presetbar" style="margin:6px 0">
+          <button class="btn ghost mini" id="connCheckin" type="button">🔗 シートから取得</button>
+        </div>
+        <div class="row">
+          <div><label style="margin-top:0">今日時点の最新累計</label><input type="number" id="ciNow" inputmode="numeric" placeholder="自分で調べて入力"></div>
+          <div><label style="margin-top:0">前日までの累計（自動）</label><input type="number" id="ciBase" inputmode="numeric" placeholder="自動／手入力も可"></div>
+        </div>
+        <div id="ciGaps"></div>
+        <div class="hint" id="ciState" style="margin-top:6px"></div>
+      </div>
       <textarea id="r3"></textarea>
       <div class="presetbar"><button class="btn ghost mini" id="plus3" type="button">＋ ・を追加</button></div>
 
@@ -354,7 +369,8 @@ let staff=[]; // [{name,bullets}]
 let lastWorkedOn=null; // 最後に編集した暦日（別日になったら当日分をクリア）
 let contentDate=null;  // 今表示中の入力がどの日付の分か
 function clearDay(){
-  ["rTarget","rActual","rGuests","rOther","rSV","genReport","wGenReport"].forEach(id=>{ $(id).value=""; delete $(id).dataset.touched; });
+  ["rTarget","rActual","rGuests","rOther","rSV","genReport","wGenReport","ciBase","ciNow"].forEach(id=>{ $(id).value=""; delete $(id).dataset.touched; });
+  $("ciState").textContent=""; if($("ciGaps")) $("ciGaps").innerHTML=""; _gapKey="";
   ["rConsider","r1","r2","r3"].forEach(id=>$(id).value=BULLET_DEFAULT);
   $("wReport").value=BULLET_DEFAULT; $("wReason").value=WORK_REASON_DEFAULT;
   workSet=defaultWorkSet(); extraWorks=[]; renderWorkChips(); // 作業チップもその日の初期選択に戻す（接客=3つ／作業=作業のみ）
@@ -458,7 +474,7 @@ function updateAppNumBtns(){
 function sync(){
   if(!$("rTheme").dataset.touched) $("rTheme").value=$("theme").value;
   if(!$("rTarget").dataset.touched && $("sales").value) $("rTarget").value=$("sales").value;
-  updateAppNumBtns(); renderTheme(); renderReport(); save();
+  updateAppNumBtns(); recalcCheckin(); renderTheme(); renderReport(); save();
 }
 
 // ===== プレビュー =====
@@ -534,13 +550,13 @@ function switchDay(t){
   renderReport(); save();
 }
 function isoOffset(off){ const d=new Date(); d.setDate(d.getDate()+off); return d.getFullYear()+"-"+pad2(d.getMonth()+1)+"-"+pad2(d.getDate()); }
-function setDate(off){ const iso=isoOffset(off); $("rdate").value=iso; contentDate=iso; renderReport(); save(); }
+function setDate(off){ const iso=isoOffset(off); $("rdate").value=iso; contentDate=iso; if($("ciGaps")){ renderCheckinGaps(); recalcCheckin(); } renderReport(); save(); }
 function hasDayContent(){ return !!($("genReport").value.trim()||$("wGenReport").value.trim()||$("rActual").value.trim()||$("rTarget").value.trim()||$("rGuests").value.trim()||cleanBullets($("rConsider").value)||cleanBullets($("r1").value)||cleanBullets($("r2").value)||cleanBullets($("r3").value)||$("rOther").value.trim()||$("rSV").value.trim()||cleanWorkReport($("wReport").value)||staff.some(s=>cleanBullets(s.bullets))); }
 function switchDate(newIso){
   if(!newIso) return;
   if(newIso===contentDate){ $("rdate").value=newIso; renderReport(); save(); return; }
   const had=hasDayContent();
-  clearDay(); $("rdate").value=newIso; contentDate=newIso; renderReport(); save();
+  clearDay(); $("rdate").value=newIso; contentDate=newIso; renderCheckinGaps(); recalcCheckin(); renderReport(); save();
   if(had) toast("別の日に切り替え・前の入力をクリアしました");
 }
 
@@ -560,7 +576,8 @@ $("resetBtn").onclick=()=>{
     $("appNum").value=15; $("sales").value=""; $("memo").value="";
     applyFromSelect("theme"); applyFromSelect("g1"); applyFromSelect("g2"); applyFromSelect("g3"); sync();
   }else{
-    ["rTarget","rActual","rGuests","rConsider","rTheme","r1","r2","r3","rOther","rSV","genReport","wGenReport"].forEach(id=>{ $(id).value=""; delete $(id).dataset.touched; });
+    ["rTarget","rActual","rGuests","rConsider","rTheme","r1","r2","r3","rOther","rSV","genReport","wGenReport","ciBase","ciNow"].forEach(id=>{ $(id).value=""; delete $(id).dataset.touched; });
+    $("ciState").textContent=""; if($("ciGaps")) $("ciGaps").innerHTML=""; _gapKey="";
     ["rConsider","r1","r2","r3"].forEach(id=>$(id).value=BULLET_DEFAULT);
     $("wReport").value=BULLET_DEFAULT; $("wReason").value=WORK_REASON_DEFAULT;
     staff=[]; renderStaff();
@@ -579,7 +596,8 @@ function save(){
     rConsider:$("rConsider").value,rTheme:$("rTheme").value,r1:$("r1").value,r2:$("r2").value,r3:$("r3").value,
     rOther:$("rOther").value,staff:staff,rSV:$("rSV").value,works:[...workSet],extraWorks,
     dayType,wReason:$("wReason").value,wReport:$("wReport").value,
-    salesUrl:$("salesUrl").value,shiftUrl:$("shiftUrl").value,
+    ciBase:$("ciBase").value,ciNow:$("ciNow").value,
+    salesUrl:$("salesUrl").value,shiftUrl:$("shiftUrl").value,checkinUrl:$("checkinUrl").value,
     genReport:$("genReport").value,wGenReport:$("wGenReport").value,geminiKey:$("geminiKey").value,workedOn:todayIso(),
     touched:["rTheme","rTarget"].filter(id=>$(id).dataset.touched)
   };
@@ -589,7 +607,7 @@ function load(){
   let d; try{ d=JSON.parse(localStorage.getItem(LS)); }catch(e){} if(!d) return false;
   const set=(id,v)=>{ if(v!==undefined&&v!==null) $(id).value=v; };
   ["themeSel","theme","g1Sel","g1","g2Sel","g2","g3Sel","g3","appNum","sales","memo",
-   "rdate","rTarget","rActual","rGuests","rConsider","rTheme","r1","r2","r3","rOther","rSV","salesUrl","shiftUrl","genReport","geminiKey","wReason","wReport","wGenReport"].forEach(k=>set(k,d[k]));
+   "rdate","rTarget","rActual","rGuests","rConsider","rTheme","r1","r2","r3","rOther","rSV","salesUrl","shiftUrl","checkinUrl","genReport","geminiKey","wReason","wReport","wGenReport","ciBase","ciNow"].forEach(k=>set(k,d[k]));
   if(d.dayType) dayType=d.dayType;
   if(Array.isArray(d.staff)) staff=d.staff;
   lastWorkedOn=d.workedOn||null;
@@ -612,7 +630,9 @@ function wire(){
   // 接続ボタン
   $("connTheme").onclick=connectTheme;
   $("connReport").onclick=connectReport;
-  $("salesUrl").oninput=save; $("shiftUrl").oninput=save;
+  $("connCheckin").onclick=connectCheckin;
+  ["ciBase","ciNow"].forEach(id=>$(id).oninput=()=>{ recalcCheckin(); renderReport(); save(); });
+  $("salesUrl").oninput=save; $("shiftUrl").oninput=save; $("checkinUrl").oninput=save;
   // 設定モーダル
   $("gearBtn").onclick=()=>{ $("testState").textContent=""; $("settingsModal").classList.add("show"); };
   $("closeSettings").onclick=()=>{ save(); $("settingsModal").classList.remove("show"); };
@@ -647,6 +667,133 @@ const SHEET_DEFAULTS={
   sales:"https://docs.google.com/spreadsheets/d/1gRzDi7N2hhpnhNgvDD3olb0d8bxXYt_JMR_Kv87-C8U/edit",
   shift:"https://docs.google.com/spreadsheets/d/1MX9hEw1z7uVykB6NQ4xk-kPYmLwrEO2Z6ecwzH_2LIw/edit"
 };
+// アプリ チェックイン数シート（下北沢店）。店名行: 2026,曜日,南船場(2-4),下北沢(5-7),原宿(8-10),… ／各店3列=チェックイン数(累計)・前日差・現在の獲得者
+const CHECKIN_DEFAULT="https://docs.google.com/spreadsheets/d/1XOPnUSm6BPWCi5vb_j8Iu-eH2Gm5uSw2BPFY2LG3Uhw/edit?gid=831573092";
+const CHECKIN_COL=5; // 下北沢の「チェックイン数（累計）」列（0始まり）
+function gidOf(u){ const m=(u||"").match(/[?#&]gid=([0-9]+)/); return m?m[1]:"0"; }
+function csvUrlGid(id,g){ return "https://docs.google.com/spreadsheets/d/"+id+"/gviz/tq?tqx=out:csv&headers=0&gid="+g; }
+// ③の目標人数（g3本文「アプリ◯名」から。なければappNum）
+function getAppTarget(){
+  const m=($("g3").value||"").match(/アプリ\s*([0-9０-９]+)\s*名/);
+  let n=m?m[1]:$("appNum").value;
+  n=String(n).replace(/[０-９]/g,d=>"0123456789"["０１２３４５６７８９".indexOf(d)]);
+  return Number(n)||0;
+}
+// ===== チェックイン数（アプリ獲得人数）=====
+let checkinData=null;   // 取得したシート {map:{"6/23":8641,...}, latestMD, latestTotal}
+let ckCumNote="";       // 地道計算のときの「前日累計の出し方」式（通常時は空）
+let _gapKey="";         // いま描画している不足日セット（再描画判定用）
+const CK_ARCHIVE="shimokita_checkin_archive"; // 過去の日報の累計・獲得数 {iso:{cum,cnt}}
+function loadArchive(){ try{ return JSON.parse(localStorage.getItem(CK_ARCHIVE))||{}; }catch(e){ return {}; } }
+function saveArchive(a){ try{ localStorage.setItem(CK_ARCHIVE,JSON.stringify(a)); }catch(e){} }
+function prevIso(iso){ const dt=new Date(iso+"T00:00:00"); dt.setDate(dt.getDate()-1); return dt.getFullYear()+"-"+pad2(dt.getMonth()+1)+"-"+pad2(dt.getDate()); }
+function isoMD(iso){ const p=iso.split("-"); return Number(p[1])+"/"+Number(p[2]); }      // 2026-06-24 → "6/24"
+function mdToIso(md,refIso){ const y=refIso.split("-")[0], p=md.split("/"); return y+"-"+pad2(Number(p[0]))+"-"+pad2(Number(p[1])); }
+// シート最新日Lの翌日〜前日Bまでの不足日（同月内のみ）。月またぎ等はnull
+function gapMDs(Lmd,Biso){
+  const lm=Number(Lmd.split("/")[0]), ld=Number(Lmd.split("/")[1]);
+  const bm=Number(Biso.split("-")[1]), bd=Number(Biso.split("-")[2]);
+  if(lm!==bm) return null;
+  const out=[]; for(let d=ld+1; d<=bd; d++) out.push(bm+"/"+d);
+  return out;
+}
+// シート全体を取得（月内の各日の累計マップ＋最新）
+async function fetchCheckinData(){
+  const u=$("checkinUrl").value||CHECKIN_DEFAULT;
+  const id=sheetId(u), g=gidOf(u);
+  const rows=parseCSV(await (await fetch(csvUrlGid(id,g))).text());
+  const map={}; let latestMD=null, latestTotal=null;
+  for(const r of rows){
+    const md=(r[0]||"").trim(); if(!/^\d+\/\d+$/.test(md)) continue;
+    const v=(r[CHECKIN_COL]||"").replace(/[^0-9]/g,"");
+    if(v){ const md2=Number(md.split("/")[0])+"/"+Number(md.split("/")[1]); map[md2]=Number(v); latestMD=md2; latestTotal=Number(v); }
+  }
+  return {map, latestMD, latestTotal};
+}
+// 前日累計をどこから出すか判定（archive→sheet→不足日チェーン）
+function checkinBaseInfo(){
+  const D=$("rdate").value; if(!D) return {mode:"none"};
+  const B=prevIso(D), arch=loadArchive();
+  if(arch[B]&&arch[B].cum!=null) return {mode:"archive", base:arch[B].cum, B, D};
+  if(checkinData){
+    const bmd=isoMD(B);
+    if(checkinData.map[bmd]!=null) return {mode:"sheet", base:checkinData.map[bmd], B, D};
+    const L=checkinData.latestMD, C=checkinData.latestTotal;
+    const gaps=L?gapMDs(L,B):null;
+    if(gaps&&gaps.length) return {mode:"gaps", gaps, L, C, B, D};
+  }
+  return {mode:"none", B, D};
+}
+// 不足日の入力欄を（必要なときだけ）描画。フォーカスを奪わないよう構成が変わったときのみ作り直す
+function renderCheckinGaps(){
+  const info=checkinBaseInfo();
+  const key=info.mode==="gaps"?("gaps:"+info.gaps.join(",")):info.mode;
+  const el=$("ciGaps");
+  if(key!==_gapKey){
+    _gapKey=key;
+    if(info.mode!=="gaps"){ el.innerHTML=""; }
+    else{
+      const arch=loadArchive();
+      let html="<div class='hint' style='margin-top:6px'>シートは "+info.L+" まで（＝"+info.C+"）。不足する日の<b>獲得人数</b>を入れてください：</div>";
+      for(const gmd of info.gaps){
+        const giso=mdToIso(gmd,info.D);
+        if(arch[giso]&&arch[giso].cnt!=null) continue; // 過去の日報にあれば質問しない
+        const idv="cig_"+gmd.replace("/","_");
+        html+="<div class='row' style='margin-top:6px'><div style='flex:0 0 160px'><label style='margin-top:0'>"+gmd+" の獲得人数は？</label><input type='number' inputmode='numeric' id='"+idv+"' placeholder='例：9'></div></div>";
+      }
+      el.innerHTML=html;
+      info.gaps.forEach(gmd=>{ const e2=document.getElementById("cig_"+gmd.replace("/","_")); if(e2) e2.oninput=()=>{ computeCheckinBase(); recalcCheckin(); save(); }; });
+    }
+  }
+  computeCheckinBase();
+}
+// 前日累計(ciBase)とその根拠(ckCumNote)を決める
+function computeCheckinBase(){
+  const info=checkinBaseInfo();
+  ckCumNote="";
+  if(info.mode==="archive"||info.mode==="sheet"){ $("ciBase").value=info.base; return; }
+  if(info.mode==="gaps"){
+    const arch=loadArchive(); let sum=info.C, steps=[info.L+"まで＝"+info.C], allKnown=true;
+    for(const gmd of info.gaps){
+      const giso=mdToIso(gmd,info.D); let cnt=null, tag="";
+      if(arch[giso]&&arch[giso].cnt!=null){ cnt=arch[giso].cnt; tag="(過去の日報)"; }
+      else{ const e2=document.getElementById("cig_"+gmd.replace("/","_")); if(e2&&e2.value!=="") cnt=Number(e2.value); }
+      if(cnt==null){ allKnown=false; steps.push(gmd+"の獲得 ＋?"); }
+      else{ sum+=cnt; steps.push(gmd+"の獲得 ＋"+cnt+tag); }
+    }
+    if(allKnown){ $("ciBase").value=sum; ckCumNote=steps.join(" ").replace(/まで＝/,"まで ")+" ＝ "+sum; }
+    else{ ckCumNote=steps.join(" ")+"（?の日を入力）"; }
+  }
+}
+// 前日累計と今日累計から獲得人数を計算し、③(r3)の先頭行に反映＋過去の日報に保存
+function recalcCheckin(){
+  const baseS=$("ciBase").value, nowS=$("ciNow").value;
+  const isAppLine=l=>/^[・･]?\s*[0-9０-９]+名(でした。?|で目標達成していません。?)\s*$/.test(l.trim());
+  if(baseS!==""&&nowS!==""){
+    const base=Number(baseS), now=Number(nowS), cnt=now-base;
+    if(!isNaN(cnt)&&cnt>=0){
+      const target=getAppTarget(), ok=target&&cnt>=target;
+      const sentence=cnt+"名"+(ok?"でした。":"で目標達成していません。");
+      const rest=$("r3").value.split("\n").filter(l=>!isAppLine(l)).map(l=>l.replace(/^[・･]\s*/,"").trim()).filter(Boolean);
+      $("r3").value=["・"+sentence].concat(rest.map(b=>"・"+b)).join("\n");
+      $("r3").dataset.touched="1";
+      const pre=ckCumNote?ckCumNote+" ／ ":"";
+      $("ciState").textContent=pre+now+" − "+base+" ＝ "+cnt+"名（目標"+(target||"—")+"名）→ "+(ok?"達成 🎉":"未達成");
+      const a=loadArchive(); a[$("rdate").value]={cum:now,cnt}; saveArchive(a); // 今日の分を過去の日報として保存
+      return;
+    }
+    if(cnt<0){ $("ciState").textContent="今日の累計が前日より小さいです。数字をご確認ください"; return; }
+  }
+  $("ciState").textContent=ckCumNote; // 計算前：地道計算の式（通常時は空でクリア）
+}
+async function connectCheckin(){
+  const b=$("connCheckin"); const o=b.textContent; b.disabled=true; b.textContent="取得中…";
+  try{ checkinData=await fetchCheckinData();
+    _gapKey=""; renderCheckinGaps(); recalcCheckin(); renderReport(); save();
+    if(!$("ciNow").value&&!$("ciState").textContent) $("ciState").textContent="シート最新："+checkinData.latestMD+"まで＝"+checkinData.latestTotal+"（今日の最新累計を入れてください）";
+  }catch(e){ $("ciState").textContent="シートから取得できませんでした（共有設定・gidをご確認ください）"; }
+  finally{ b.disabled=false; b.textContent=o; }
+}
 const NAMEMAP={"パーカー":"パーカー","ちゃま":"ちゃまさん","おむ":"おむちゃんさん","サブロー":"サブロー","たき":"たきちゃん"};
 const MEMBERS=["パーカー","ちゃま","おむ","サブロー","たき"]; // やえ・へるぷは除外
 function sheetId(u){ const m=(u||"").match(/\/d\/([a-zA-Z0-9-_]+)/); return m?m[1]:""; }
@@ -702,8 +849,9 @@ async function connectReport(){
   const b=$("connReport"); const o=b.textContent; b.disabled=true; b.textContent="接続中…";
   try{
     const iso=$("rdate").value||todayIso();
-    const [s,members]=await Promise.all([fetchSales(iso),fetchShift(iso)]);
+    const [s,members,ckd]=await Promise.all([fetchSales(iso),fetchShift(iso),fetchCheckinData().catch(()=>null)]);
     let msg=[];
+    if(ckd){ checkinData=ckd; _gapKey=""; renderCheckinGaps(); recalcCheckin(); msg.push("アプリ累計"); }
     if(s){
       if(s.target!=null){ $("rTarget").value=s.target; $("rTarget").dataset.touched="1"; }
       if(s.actual!=null) $("rActual").value=s.actual;
@@ -937,6 +1085,7 @@ function startApp(){
     applyFromSelect("theme"); applyFromSelect("g1"); applyFromSelect("g2"); applyFromSelect("g3"); }
   if(!$("salesUrl").value) $("salesUrl").value=SHEET_DEFAULTS.sales;
   if(!$("shiftUrl").value) $("shiftUrl").value=SHEET_DEFAULTS.shift;
+  if(!$("checkinUrl").value) $("checkinUrl").value=CHECKIN_DEFAULT;
   if(restored && lastWorkedOn && lastWorkedOn!==todayIso()) clearDay(); // 別の日に開いたら前日分をクリア
   ["rConsider","r1","r2","r3"].forEach(id=>{ if(!$(id).value.trim()) $(id).value=BULLET_DEFAULT; });
   if(!$("wReport").value.trim()) $("wReport").value=BULLET_DEFAULT;
