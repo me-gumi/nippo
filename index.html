@@ -682,6 +682,8 @@ function getAppTarget(){
 // ===== チェックイン数（アプリ獲得人数）=====
 let checkinData=null;   // 取得したシート {map:{"6/23":8641,...}, latestMD, latestTotal}
 let ckCumNote="";       // 地道計算のときの「前日累計の出し方」式（通常時は空）
+let ckSrcTag="";        // 出どころの小メモ（過去の日報より／シートより）
+let ckSrc="";           // 入力前に出す「前日までの累計＝○○（出どころ）」
 let _gapKey="";         // いま描画している不足日セット（再描画判定用）
 const CK_ARCHIVE="shimokita_checkin_archive"; // 過去の日報の累計・獲得数 {iso:{cum,cnt}}
 function loadArchive(){ try{ return JSON.parse(localStorage.getItem(CK_ARCHIVE))||{}; }catch(e){ return {}; } }
@@ -750,8 +752,14 @@ function renderCheckinGaps(){
 // 前日累計(ciBase)とその根拠(ckCumNote)を決める
 function computeCheckinBase(){
   const info=checkinBaseInfo();
-  ckCumNote="";
-  if(info.mode==="archive"||info.mode==="sheet"){ $("ciBase").value=info.base; return; }
+  ckCumNote=""; ckSrcTag=""; ckSrc="";
+  if(info.mode==="archive"||info.mode==="sheet"){
+    $("ciBase").value=info.base;
+    const from=info.mode==="archive"?"過去の日報より":"シートより";
+    ckSrcTag="（前日累計は"+from+"）";
+    ckSrc="前日("+isoMD(info.B)+")までの累計＝"+info.base+"（"+from+"）";
+    return;
+  }
   if(info.mode==="gaps"){
     const arch=loadArchive(); let sum=info.C, steps=[info.L+"まで＝"+info.C], allKnown=true;
     for(const gmd of info.gaps){
@@ -763,6 +771,7 @@ function computeCheckinBase(){
     }
     if(allKnown){ $("ciBase").value=sum; ckCumNote=steps.join(" ").replace(/まで＝/,"まで ")+" ＝ "+sum; }
     else{ ckCumNote=steps.join(" ")+"（?の日を入力）"; }
+    ckSrc=ckCumNote;
   }
 }
 // 前日累計と今日累計から獲得人数を計算し、③(r3)の先頭行に反映＋過去の日報に保存
@@ -778,13 +787,14 @@ function recalcCheckin(){
       $("r3").value=["・"+sentence].concat(rest.map(b=>"・"+b)).join("\n");
       $("r3").dataset.touched="1";
       const pre=ckCumNote?ckCumNote+" ／ ":"";
-      $("ciState").textContent=pre+now+" − "+base+" ＝ "+cnt+"名（目標"+(target||"—")+"名）→ "+(ok?"達成 🎉":"未達成");
+      const tail=ckSrcTag?"  "+ckSrcTag:"";
+      $("ciState").textContent=pre+now+" − "+base+" ＝ "+cnt+"名（目標"+(target||"—")+"名）→ "+(ok?"達成 🎉":"未達成")+tail;
       const a=loadArchive(); a[$("rdate").value]={cum:now,cnt}; saveArchive(a); // 今日の分を過去の日報として保存
       return;
     }
     if(cnt<0){ $("ciState").textContent="今日の累計が前日より小さいです。数字をご確認ください"; return; }
   }
-  $("ciState").textContent=ckCumNote; // 計算前：地道計算の式（通常時は空でクリア）
+  $("ciState").textContent=ckSrc; // 計算前：前日累計の出どころメモ（通常時は空でクリア）
 }
 async function connectCheckin(){
   const b=$("connCheckin"); const o=b.textContent; b.disabled=true; b.textContent="取得中…";
