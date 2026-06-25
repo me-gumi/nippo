@@ -110,6 +110,8 @@
   </div>
   <p class="lead">選んで・直して・コピー → アイポに貼って送信。朝のテーマは夜の日報に自動で引き継がれます。</p>
 
+  <div id="syncBanner" style="display:none;background:var(--accent);border:1px solid var(--brand);border-radius:12px;padding:10px 14px;margin-bottom:14px;font-size:13px;color:var(--brand-d)"></div>
+
   <!-- 設定モーダル -->
   <div class="modal" id="settingsModal">
     <div class="mbox">
@@ -122,6 +124,11 @@
       <label style="margin-top:10px">アプリ チェックイン数シートのリンク</label>
       <input type="text" id="checkinUrl" placeholder="https://docs.google.com/spreadsheets/d/.../edit?gid=...">
       <div class="hint">下北沢店の「チェックイン数（累計）」を読み取り、今日の最新累計との差で獲得人数を計算します。</div>
+      <label style="margin-top:14px">同期サーバー（Apps Script）のURL</label>
+      <input type="text" id="syncUrl" placeholder="https://script.google.com/macros/s/.../exec">
+      <label style="margin-top:8px">同期の合言葉</label>
+      <input type="password" id="syncToken" placeholder="自分で決めた合言葉">
+      <div class="hint">PC・スマホで日報の下書きを共有します。同じURL・合言葉を両方の端末に入れてください。空なら同期しません（その端末だけに保存）。</div>
       <label style="margin-top:14px">Gemini APIキー（文章作成用・無料）</label>
       <input type="password" id="geminiKey" placeholder="AIza...（端末内のみ保存）">
       <div class="hint">aistudio.google.com/apikey で無料取得（カード不要）。あなたの端末だけに保存され、公開コードには含まれません。</div>
@@ -325,6 +332,7 @@
 
 <div class="bar" id="bar" style="display:none">
   <button class="btn" id="copyBtn">📋 コピー</button>
+  <button class="btn ghost" id="draftBtn" style="flex:0 0 auto;padding:14px 12px">💾 下書き保存</button>
   <button class="btn reset" id="resetBtn">リセット</button>
 </div>
 <div class="toast" id="toast"></div>
@@ -550,13 +558,13 @@ function switchDay(t){
   renderReport(); save();
 }
 function isoOffset(off){ const d=new Date(); d.setDate(d.getDate()+off); return d.getFullYear()+"-"+pad2(d.getMonth()+1)+"-"+pad2(d.getDate()); }
-function setDate(off){ const iso=isoOffset(off); $("rdate").value=iso; contentDate=iso; if($("ciGaps")){ renderCheckinGaps(); recalcCheckin(); } renderReport(); save(); }
+function setDate(off){ const iso=isoOffset(off); $("rdate").value=iso; contentDate=iso; if($("ciGaps")){ renderCheckinGaps(); recalcCheckin(); } renderReport(); save(); checkCloudDraft(); }
 function hasDayContent(){ return !!($("genReport").value.trim()||$("wGenReport").value.trim()||$("rActual").value.trim()||$("rTarget").value.trim()||$("rGuests").value.trim()||cleanBullets($("rConsider").value)||cleanBullets($("r1").value)||cleanBullets($("r2").value)||cleanBullets($("r3").value)||$("rOther").value.trim()||$("rSV").value.trim()||cleanWorkReport($("wReport").value)||staff.some(s=>cleanBullets(s.bullets))); }
 function switchDate(newIso){
   if(!newIso) return;
   if(newIso===contentDate){ $("rdate").value=newIso; renderReport(); save(); return; }
   const had=hasDayContent();
-  clearDay(); $("rdate").value=newIso; contentDate=newIso; renderCheckinGaps(); recalcCheckin(); renderReport(); save();
+  clearDay(); $("rdate").value=newIso; contentDate=newIso; renderCheckinGaps(); recalcCheckin(); renderReport(); save(); checkCloudDraft();
   if(had) toast("別の日に切り替え・前の入力をクリアしました");
 }
 
@@ -599,6 +607,7 @@ function save(){
     ciBase:$("ciBase").value,ciNow:$("ciNow").value,
     salesUrl:$("salesUrl").value,shiftUrl:$("shiftUrl").value,checkinUrl:$("checkinUrl").value,
     genReport:$("genReport").value,wGenReport:$("wGenReport").value,geminiKey:$("geminiKey").value,workedOn:todayIso(),
+    syncUrl:$("syncUrl").value,syncToken:$("syncToken").value,savedAt:Date.now(),
     touched:["rTheme","rTarget"].filter(id=>$(id).dataset.touched)
   };
   try{ localStorage.setItem(LS,JSON.stringify(d)); }catch(e){}
@@ -607,7 +616,7 @@ function load(){
   let d; try{ d=JSON.parse(localStorage.getItem(LS)); }catch(e){} if(!d) return false;
   const set=(id,v)=>{ if(v!==undefined&&v!==null) $(id).value=v; };
   ["themeSel","theme","g1Sel","g1","g2Sel","g2","g3Sel","g3","appNum","sales","memo",
-   "rdate","rTarget","rActual","rGuests","rConsider","rTheme","r1","r2","r3","rOther","rSV","salesUrl","shiftUrl","checkinUrl","genReport","geminiKey","wReason","wReport","wGenReport","ciBase","ciNow"].forEach(k=>set(k,d[k]));
+   "rdate","rTarget","rActual","rGuests","rConsider","rTheme","r1","r2","r3","rOther","rSV","salesUrl","shiftUrl","checkinUrl","genReport","geminiKey","wReason","wReport","wGenReport","ciBase","ciNow","syncUrl","syncToken"].forEach(k=>set(k,d[k]));
   if(d.dayType) dayType=d.dayType;
   if(Array.isArray(d.staff)) staff=d.staff;
   lastWorkedOn=d.workedOn||null;
@@ -633,6 +642,7 @@ function wire(){
   $("connCheckin").onclick=connectCheckin;
   ["ciBase","ciNow"].forEach(id=>$(id).oninput=()=>{ recalcCheckin(); renderReport(); save(); });
   $("salesUrl").oninput=save; $("shiftUrl").oninput=save; $("checkinUrl").oninput=save;
+  $("syncUrl").oninput=save; $("syncToken").oninput=save; $("draftBtn").onclick=saveDraft;
   // 設定モーダル
   $("gearBtn").onclick=()=>{ $("testState").textContent=""; $("settingsModal").classList.add("show"); };
   $("closeSettings").onclick=()=>{ save(); $("settingsModal").classList.remove("show"); };
@@ -1084,6 +1094,76 @@ async function generateWorkReport(){
     $("wGenState").textContent="✗ 失敗："+lastMsg+"／少し待って、もう一度「文章にする」を押してください";
     toast("混雑などで作成できませんでした。少し待って再度お試しください");
   } finally { b.disabled=false; b.textContent=o; }
+}
+
+// ===== PC↔スマホ 同期（Google Apps Script 経由）=====
+const SETTINGS_KEYS=["salesUrl","shiftUrl","checkinUrl","geminiKey","syncUrl","syncToken"]; // 同期に乗せない端末ごとの設定
+function syncCfg(){ return { url:($("syncUrl").value||"").trim(), token:($("syncToken").value||"").trim() }; }
+async function syncReq(payload){
+  const {url,token}=syncCfg(); if(!url) throw new Error("no-url");
+  const r=await fetch(url,{method:"POST",headers:{"Content-Type":"text/plain;charset=utf-8"},body:JSON.stringify(Object.assign({token},payload))});
+  const data=await r.json(); if(!data.ok) throw new Error(data.error||"sync-failed"); return data;
+}
+async function syncSet(key,value){ return syncReq({action:"set",key,value}); }
+async function syncGet(key){ const d=await syncReq({action:"get",key}); return {value:d.value, updatedAt:d.updatedAt}; }
+// この端末が「最後に同期したクラウドの更新時刻」を日付ごとに記録（サーバー時刻基準で新旧判定）
+const SYNC_SEEN="shimokita_sync_seen";
+function getSeen(iso){ try{ return (JSON.parse(localStorage.getItem(SYNC_SEEN))||{})[iso]||""; }catch(e){ return ""; } }
+function setSeen(iso,t){ try{ const o=JSON.parse(localStorage.getItem(SYNC_SEEN))||{}; o[iso]=t||""; localStorage.setItem(SYNC_SEEN,JSON.stringify(o)); }catch(e){} }
+// 「下書き保存」：この端末に保存＋クラウドへアップ（PC・スマホ共通）
+async function saveDraft(){
+  save();
+  const {url}=syncCfg();
+  if(!url){ toast("この端末に保存しました（同期は⚙設定でURL・合言葉を入れると有効）"); return; }
+  const b=$("draftBtn"); const o=b.textContent; b.disabled=true; b.textContent="保存中…";
+  try{
+    const iso=$("rdate").value||todayIso();
+    // 過去の日報（数字）はマージして全端末分を保つ
+    let arch=loadArchive();
+    try{ const c=await syncGet("archive"); if(c.value){ arch=Object.assign({},JSON.parse(c.value),arch); saveArchive(arch); } }catch(e){}
+    await syncSet("archive", JSON.stringify(arch));
+    // 日報本文（端末ごとの設定は除外）
+    const snap=JSON.parse(localStorage.getItem(LS)||"{}");
+    SETTINGS_KEYS.forEach(k=>delete snap[k]);
+    const res=await syncSet("draft_"+iso, JSON.stringify(snap));
+    setSeen(iso,res.updatedAt); // 自分が今上げた版を「既知」にする＝自分には通知しない
+    toast("下書きを保存しました（PC・スマホ共通）"); hideSyncBanner();
+  }catch(e){ toast("同期に失敗しました（URL・合言葉・通信をご確認ください）"); }
+  finally{ b.disabled=false; b.textContent=o; }
+}
+// 開いたとき／日付を変えたとき：クラウドに別端末の新しい下書きがあれば知らせる＋数字をマージ
+async function checkCloudDraft(){
+  const {url}=syncCfg(); if(!url) return;
+  const iso=$("rdate").value||todayIso();
+  try{
+    const ca=await syncGet("archive");
+    if(ca.value){ const merged=Object.assign({},JSON.parse(ca.value),loadArchive()); saveArchive(merged); renderCheckinGaps(); recalcCheckin(); }
+    const d=await syncGet("draft_"+iso);
+    if(d.value && d.updatedAt && d.updatedAt!==getSeen(iso)) showSyncBanner(iso,d.updatedAt,d.value);
+    else hideSyncBanner();
+  }catch(e){}
+}
+function showSyncBanner(iso,updatedAt,value){
+  const el=$("syncBanner"); if(!el) return;
+  let when=""; try{ const dt=new Date(updatedAt); if(updatedAt&&!isNaN(dt)) when=dt.toLocaleString("ja-JP",{month:"numeric",day:"numeric",hour:"2-digit",minute:"2-digit"}); }catch(e){}
+  el.dataset.value=value; el.dataset.iso=iso; el.dataset.updatedAt=updatedAt||"";
+  el.innerHTML="📥 "+fmtDate(iso)+" の下書きが別の端末で保存されています"+(when?"（"+when+"）":"")+"　"
+    +"<button class='btn mini' id='loadDraftBtn' type='button'>読み込む</button> "
+    +"<button class='btn ghost mini' id='dismissDraftBtn' type='button'>✕</button>";
+  el.style.display="block";
+  $("loadDraftBtn").onclick=loadCloudDraft;
+  $("dismissDraftBtn").onclick=()=>{ setSeen(iso,el.dataset.updatedAt); hideSyncBanner(); }; // 「✕」＝この版は見たことにする
+}
+function hideSyncBanner(){ const el=$("syncBanner"); if(el){ el.style.display="none"; el.innerHTML=""; } }
+function loadCloudDraft(){
+  const el=$("syncBanner"); const value=el&&el.dataset.value;
+  if(!value) return;
+  let cloud; try{ cloud=JSON.parse(value); }catch(e){ toast("下書きの読み込みに失敗しました"); return; }
+  const local=JSON.parse(localStorage.getItem(LS)||"{}");
+  SETTINGS_KEYS.forEach(k=>{ if(local[k]!=null) cloud[k]=local[k]; }); // 端末ごとの設定（APIキー等）は残す
+  localStorage.setItem(LS, JSON.stringify(cloud));
+  setSeen(el.dataset.iso, el.dataset.updatedAt); // 読み込んだ版を既知にする
+  location.reload();
 }
 
 // ===== 初期化 =====
