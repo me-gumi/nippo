@@ -1163,6 +1163,7 @@ function loadCloudDraft(){
   SETTINGS_KEYS.forEach(k=>{ if(local[k]!=null) cloud[k]=local[k]; }); // 端末ごとの設定（APIキー等）は残す
   localStorage.setItem(LS, JSON.stringify(cloud));
   setSeen(el.dataset.iso, el.dataset.updatedAt); // 読み込んだ版を既知にする
+  try{ sessionStorage.setItem("nippo_returnTab", curTab||"report"); }catch(e){} // 読込後も今のタブに留まる
   location.reload();
 }
 
@@ -1183,6 +1184,7 @@ function startApp(){
   workSet=defaultWorkSet(); renderWorkChips(); renderStaff(); updateAppNumBtns();
   setDate(0); // 起動時は常に当日（今日）に
   wire(); switchDay(dayType); renderTheme(); sync(); // sync()でテーマ・目標を日報へ引き継ぎ＋プレビュー
+  try{ const rt=sessionStorage.getItem("nippo_returnTab"); if(rt){ sessionStorage.removeItem("nippo_returnTab"); switchTab(rt); } }catch(e){} // 下書き読込後は元のタブへ
 }
 
 // ===== ログイン =====
