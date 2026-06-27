@@ -605,9 +605,7 @@ function save(){
     rOther:$("rOther").value,staff:staff,rSV:$("rSV").value,works:[...workSet],extraWorks,
     dayType,wReason:$("wReason").value,wReport:$("wReport").value,
     ciBase:$("ciBase").value,ciNow:$("ciNow").value,
-    salesUrl:$("salesUrl").value,shiftUrl:$("shiftUrl").value,checkinUrl:$("checkinUrl").value,
-    genReport:$("genReport").value,wGenReport:$("wGenReport").value,geminiKey:$("geminiKey").value,workedOn:todayIso(),
-    syncUrl:$("syncUrl").value,syncToken:$("syncToken").value,savedAt:Date.now(),
+    genReport:$("genReport").value,wGenReport:$("wGenReport").value,workedOn:todayIso(),savedAt:Date.now(),
     touched:["rTheme","rTarget"].filter(id=>$(id).dataset.touched)
   };
   try{ localStorage.setItem(LS,JSON.stringify(d)); }catch(e){}
@@ -616,7 +614,7 @@ function load(){
   let d; try{ d=JSON.parse(localStorage.getItem(LS)); }catch(e){} if(!d) return false;
   const set=(id,v)=>{ if(v!==undefined&&v!==null) $(id).value=v; };
   ["themeSel","theme","g1Sel","g1","g2Sel","g2","g3Sel","g3","appNum","sales","memo",
-   "rdate","rTarget","rActual","rGuests","rConsider","rTheme","r1","r2","r3","rOther","rSV","salesUrl","shiftUrl","checkinUrl","genReport","geminiKey","wReason","wReport","wGenReport","ciBase","ciNow","syncUrl","syncToken"].forEach(k=>set(k,d[k]));
+   "rdate","rTarget","rActual","rGuests","rConsider","rTheme","r1","r2","r3","rOther","rSV","genReport","wReason","wReport","wGenReport","ciBase","ciNow"].forEach(k=>set(k,d[k]));
   if(d.dayType) dayType=d.dayType;
   if(Array.isArray(d.staff)) staff=d.staff;
   lastWorkedOn=d.workedOn||null;
@@ -641,11 +639,11 @@ function wire(){
   $("connReport").onclick=connectReport;
   $("connCheckin").onclick=connectCheckin;
   ["ciBase","ciNow"].forEach(id=>$(id).oninput=()=>{ recalcCheckin(); renderReport(); save(); });
-  $("salesUrl").oninput=save; $("shiftUrl").oninput=save; $("checkinUrl").oninput=save;
-  $("syncUrl").oninput=save; $("syncToken").oninput=save; $("draftBtn").onclick=saveDraft;
+  $("salesUrl").oninput=saveSettings; $("shiftUrl").oninput=saveSettings; $("checkinUrl").oninput=saveSettings;
+  $("syncUrl").oninput=saveSettings; $("syncToken").oninput=saveSettings; $("draftBtn").onclick=saveDraft;
   // 設定モーダル
   $("gearBtn").onclick=()=>{ $("testState").textContent=""; $("settingsModal").classList.add("show"); };
-  $("closeSettings").onclick=()=>{ save(); $("settingsModal").classList.remove("show"); };
+  $("closeSettings").onclick=()=>{ saveSettings(); save(); $("settingsModal").classList.remove("show"); };
   $("settingsModal").onclick=e=>{ if(e.target===$("settingsModal")) $("settingsModal").classList.remove("show"); };
   $("testConn").onclick=async()=>{
     $("testState").textContent="接続テスト中…";
@@ -664,7 +662,7 @@ function wire(){
   $("genClear").onclick=()=>{ $("genReport").value=""; renderReport(); save(); $("genState").textContent="完成文をクリアしました（箇条書き表示に戻りました）"; };
   $("wGenBtn").onclick=generateWorkReport;
   $("wGenClear").onclick=()=>{ $("wGenReport").value=""; renderReport(); save(); $("wGenState").textContent="完成文をクリアしました（箇条書き表示に戻りました）"; };
-  $("geminiKey").oninput=save;
+  $("geminiKey").oninput=saveSettings;
   ["rTheme","r1","r2","r3","rTarget"].forEach(id=>$(id).addEventListener("input",()=>{ $(id).dataset.touched="1"; }));
   // 作業追加
   $("workAdd").addEventListener("keydown",e=>{
@@ -1111,10 +1109,17 @@ async function generateWorkReport(){
 }
 
 // ===== PC↔スマホ 同期（Google Apps Script 経由）=====
-const SETTINGS_KEYS=["salesUrl","shiftUrl","checkinUrl","geminiKey","syncUrl","syncToken"]; // 同期に乗せない端末ごとの設定
+const SETTINGS_KEYS=["salesUrl","shiftUrl","checkinUrl","geminiKey","syncUrl","syncToken"]; // 端末ごとの設定（下書き同期には乗せない）
+const SLS="shimokita_settings"; // 設定は本体データとは別キーで保存（下書き・同期処理で消えないように）
+function saveSettings(){ const o={}; SETTINGS_KEYS.forEach(k=>o[k]=$(k).value); try{ localStorage.setItem(SLS,JSON.stringify(o)); }catch(e){} }
+function loadSettings(){
+  let o=null; try{ o=JSON.parse(localStorage.getItem(SLS)); }catch(e){}
+  if(!o){ try{ const d=JSON.parse(localStorage.getItem(LS)); if(d){ o={}; SETTINGS_KEYS.forEach(k=>{ if(d[k]!=null) o[k]=d[k]; }); } }catch(e){} } // 旧版：本体ブロブから移行
+  if(o){ SETTINGS_KEYS.forEach(k=>{ if(o[k]!=null) $(k).value=o[k]; }); }
+}
 function syncCfg(){
   let url=($("syncUrl").value||"").trim(), token=($("syncToken").value||"").trim();
-  if(!url){ try{ const d=JSON.parse(localStorage.getItem(LS)); if(d){ url=(d.syncUrl||"").trim()||url; token=(d.syncToken||"").trim()||token; } }catch(e){} } // 起動直後(input未反映)でも読めるように
+  if(!url){ try{ const d=JSON.parse(localStorage.getItem(SLS))||JSON.parse(localStorage.getItem(LS)); if(d){ url=(d.syncUrl||"").trim()||url; token=(d.syncToken||"").trim()||token; } }catch(e){} } // 起動直後(input未反映)でも読めるように
   return {url,token};
 }
 async function syncReq(payload){
@@ -1197,6 +1202,7 @@ function loadCloudDraft(){
 async function startApp(){
   $("login").style.display="none"; $("app").style.display="block"; $("bar").style.display="flex";
   ["theme","g1","g2","g3"].forEach(buildSelect);
+  loadSettings(); // 設定（同期URL・合言葉・各シートURL）を専用キーから先に復元
   await maybePullCloudDraft(); // 開いたときに別端末の最新下書きを自動取り込み（load前）
   const restored=load();
   if(!restored){ $("themeSel").value=0; $("g1Sel").value=0; $("g2Sel").value=0; $("g3Sel").value=0;
@@ -1204,6 +1210,7 @@ async function startApp(){
   if(!$("salesUrl").value) $("salesUrl").value=SHEET_DEFAULTS.sales;
   if(!$("shiftUrl").value) $("shiftUrl").value=SHEET_DEFAULTS.shift;
   if(!$("checkinUrl").value) $("checkinUrl").value=CHECKIN_DEFAULT;
+  saveSettings(); // 既定値も含め設定を専用キーに保存（移行・永続化）
   if(restored && lastWorkedOn && lastWorkedOn!==todayIso()) clearDay(); // 別の日に開いたら前日分をクリア
   ["rConsider","r1","r2","r3"].forEach(id=>{ if(!$(id).value.trim()) $(id).value=BULLET_DEFAULT; });
   if(!$("wReport").value.trim()) $("wReport").value=BULLET_DEFAULT;
