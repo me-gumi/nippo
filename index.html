@@ -499,9 +499,11 @@ function buildTheme(){
 function fmtDate(v){ if(!v) return ""; const d=new Date(v+"T00:00:00"); return (d.getMonth()+1)+"/"+d.getDate()+"("+WD[d.getDay()]+")"; }
 // 冒頭のあいさつ：報告日が今日なら「本日」、過去日（昨日など）なら遅れたお詫び付き
 function reportHeader(){
-  return ($("rdate").value===todayIso())
-    ? "お疲れ様です。本日の日報をお送りいたします。\nご確認よろしくお願いいたします。"
-    : "お疲れ様です。昨日の日報をお送りいたします。提出が遅れてしまい申し訳ございません。\nご確認よろしくお願いいたします。";
+  const iso=$("rdate").value, t=todayIso();
+  if(iso===t) return "お疲れ様です。本日の日報をお送りいたします。\nご確認よろしくお願いいたします。";
+  if(iso===isoOffset(-1)) return "お疲れ様です。昨日の日報をお送りいたします。提出が遅れてしまい申し訳ございません。\nご確認よろしくお願いいたします。";
+  const day=Number((iso||"").split("-")[2])||""; // 選択した日の「日」
+  return "お疲れ様です。"+day+"日の日報をお送りいたします。提出が遅れてしまい申し訳ございません。\nご確認よろしくお願いいたします。";
 }
 function buildReport(){
   const gen=$("genReport").value.trim();
