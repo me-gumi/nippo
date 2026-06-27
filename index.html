@@ -726,15 +726,29 @@ async function fetchCheckinData(){
 function checkinBaseInfo(){
   const D=$("rdate").value; if(!D) return {mode:"none"};
   const B=prevIso(D), arch=loadArchive();
-  if(arch[B]&&arch[B].cum!=null) return {mode:"archive", base:arch[B].cum, B, D};
+  // シート優先（シートが正。前日がシートに載っていればそれを使う）
   if(checkinData){
     const bmd=isoMD(B);
     if(checkinData.map[bmd]!=null) return {mode:"sheet", base:checkinData.map[bmd], B, D};
+  }
+  // シート未記載のときだけ「過去の日報」の記憶を使う
+  if(arch[B]&&arch[B].cum!=null) return {mode:"archive", base:arch[B].cum, B, D};
+  if(checkinData){
     const L=checkinData.latestMD, C=checkinData.latestTotal;
     const gaps=L?gapMDs(L,B):null;
     if(gaps&&gaps.length) return {mode:"gaps", gaps, L, C, B, D};
   }
   return {mode:"none", B, D};
+}
+// シートに載っている日の累計で「過去の日報」の記憶を上書き修正（シートが正）
+function healArchiveFromSheet(){
+  if(!checkinData||!checkinData.map) return;
+  const a=loadArchive(); let changed=false;
+  for(const md in checkinData.map){
+    const iso=mdToIso(md, todayIso());
+    if(!a[iso] || a[iso].cum!==checkinData.map[md]){ a[iso]={cum:checkinData.map[md]}; changed=true; }
+  }
+  if(changed) saveArchive(a);
 }
 // 不足日の入力欄を（必要なときだけ）描画。フォーカスを奪わないよう構成が変わったときのみ作り直す
 function renderCheckinGaps(){
@@ -808,7 +822,7 @@ function recalcCheckin(){
 }
 async function connectCheckin(){
   const b=$("connCheckin"); const o=b.textContent; b.disabled=true; b.textContent="取得中…";
-  try{ checkinData=await fetchCheckinData();
+  try{ checkinData=await fetchCheckinData(); healArchiveFromSheet();
     _gapKey=""; renderCheckinGaps(); recalcCheckin(); renderReport(); save();
     if(!$("ciNow").value&&!$("ciState").textContent) $("ciState").textContent="シート最新："+checkinData.latestMD+"まで＝"+checkinData.latestTotal+"（今日の最新累計を入れてください）";
   }catch(e){ $("ciState").textContent="シートから取得できませんでした（共有設定・gidをご確認ください）"; }
@@ -871,7 +885,7 @@ async function connectReport(){
     const iso=$("rdate").value||todayIso();
     const [s,members,ckd]=await Promise.all([fetchSales(iso),fetchShift(iso),fetchCheckinData().catch(()=>null)]);
     let msg=[];
-    if(ckd){ checkinData=ckd; _gapKey=""; renderCheckinGaps(); recalcCheckin(); msg.push("アプリ累計"); }
+    if(ckd){ checkinData=ckd; healArchiveFromSheet(); _gapKey=""; renderCheckinGaps(); recalcCheckin(); msg.push("アプリ累計"); }
     if(s){
       if(s.target!=null){ $("rTarget").value=s.target; $("rTarget").dataset.touched="1"; }
       if(s.actual!=null) $("rActual").value=s.actual;
