@@ -437,7 +437,8 @@ function buildSelect(kind){
   if(cur!==""&&(cur==="custom"||Number(cur)<presets[kind].length)) sel.value=cur;
 }
 function applyFromSelect(kind){
-  const sel=$(SEL[kind]); if(sel.value==="custom") return;
+  const sel=$(SEL[kind]);
+  if(sel.value==="custom"){ $(FIELD[kind]).value=""; return; } // カスタム入力を選んだら下の欄を空に
   let t=presets[kind][Number(sel.value)]; if(t===undefined) return;
   $(FIELD[kind]).value=(kind==="g3")?fromToken(t):t;
 }
@@ -571,9 +572,16 @@ function hasDayContent(){ return !!($("genReport").value.trim()||$("wGenReport")
 function switchDate(newIso){
   if(!newIso) return;
   if(newIso===contentDate){ $("rdate").value=newIso; renderReport(); save(); return; }
-  const had=hasDayContent();
-  clearDay(); $("rdate").value=newIso; contentDate=newIso; renderCheckinGaps(); recalcCheckin(); renderReport(); save();
-  if(had) toast("別の日に切り替え・前の入力をクリアしました");
+  save(); // いまの日付の内容を保存（あとで戻ったとき表示できるように）
+  const all=loadDrafts();
+  if(all[newIso]){ // その日の保存内容があれば復元
+    applyDraftBlob(all[newIso]); $("rdate").value=newIso; contentDate=newIso;
+    renderCheckinGaps(); recalcCheckin(); renderReport(); save();
+    toast(fmtDate(newIso)+"の保存内容を表示しました");
+  }else{ // 無ければ新規（空）
+    clearDay(); $("rdate").value=newIso; contentDate=newIso;
+    renderCheckinGaps(); recalcCheckin(); renderReport(); save();
+  }
 }
 
 // ===== トースト＆コピー =====
@@ -617,6 +625,20 @@ function save(){
     touched:["rTheme","rTarget"].filter(id=>$(id).dataset.touched)
   };
   try{ localStorage.setItem(LS,JSON.stringify(d)); }catch(e){}
+  try{ if(d.rdate){ const all=loadDrafts(); all[d.rdate]=d; pruneDrafts(all); saveDrafts(all); } }catch(e){} // 日付ごとにも保存（日付を変えても消えない）
+}
+// ===== 日付ごとの下書き保存（端末内）=====
+const DLS="shimokita_drafts";
+function loadDrafts(){ try{ return JSON.parse(localStorage.getItem(DLS))||{}; }catch(e){ return {}; } }
+function saveDrafts(o){ try{ localStorage.setItem(DLS,JSON.stringify(o)); }catch(e){} }
+function pruneDrafts(all){ const ks=Object.keys(all).sort(); while(ks.length>90){ delete all[ks.shift()]; } } // 直近90日分だけ保持
+// 保存済みの日付ブロブを画面に反映
+function applyDraftBlob(blob){
+  localStorage.setItem(LS, JSON.stringify(blob));
+  load(); // 入力欄・スタッフ・dayType・extraWorks を復元
+  workSet = Array.isArray(blob.works) ? new Set(blob.works) : defaultWorkSet();
+  renderWorkChips(); renderStaff(); updateAppNumBtns();
+  switchDay(dayType); // 表示反映（workSetは保持）
 }
 function load(){
   let d; try{ d=JSON.parse(localStorage.getItem(LS)); }catch(e){} if(!d) return false;
